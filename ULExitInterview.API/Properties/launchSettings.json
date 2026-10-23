@@ -1,12 +1,25 @@
 {
+  "$schema": "http://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "ULExitInterview.API": {
+    "http": {
       "commandName": "Project",
+      "dotnetRunMessages": true,
       "launchBrowser": true,
+      "launchUrl": "swagger",
+      "applicationUrl": "http://localhost:55397",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "applicationUrl": "https://localhost:55398;http://localhost:55399"
+      }
+    },
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "applicationUrl": "https://localhost:55398;http://localhost:55397",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
     }
   }
 }
