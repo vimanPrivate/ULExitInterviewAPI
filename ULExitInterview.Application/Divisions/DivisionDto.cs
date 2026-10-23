@@ -1,5 +1,6 @@
 namespace ULExitInterview.Application.Divisions;
 
 public sealed record DivisionDto(
-    string Code,
-    string Name);
+    string DivisionCode,
+    string DivisionName,
+    IReadOnlyList<DepartmentDto> Departments);
