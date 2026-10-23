@@ -1,0 +1,5 @@
+<Project>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ULExitInterview.Infrastructure'">
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>
