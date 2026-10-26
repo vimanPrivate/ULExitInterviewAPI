@@ -15,17 +15,9 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var sqlConnectionString = configuration.GetConnectionString("SqlServer");
-        if (string.IsNullOrWhiteSpace(sqlConnectionString))
-        {
-            throw new InvalidOperationException("Connection string 'SqlServer' is not configured.");
-        }
-
-        var oracleConnectionString = configuration.GetConnectionString("Oracle");
-        if (string.IsNullOrWhiteSpace(oracleConnectionString))
-        {
-            throw new InvalidOperationException("Connection string 'Oracle' is not configured.");
-        }
+        var primarySqlConnectionString = GetRequiredConnectionString(configuration, "SqlServerPrimary");
+        var secondarySqlConnectionString = GetRequiredConnectionString(configuration, "SqlServerSecondary");
+        var oracleConnectionString = GetRequiredConnectionString(configuration, "Oracle");
 
         var adAuthenticationSection = configuration.GetSection(AdAuthenticationOptions.SectionName);
         var adAuthenticationOptions = adAuthenticationSection.Get<AdAuthenticationOptions>()
@@ -63,8 +55,13 @@ public static class DependencyInjection
         services.Configure<AdAuthenticationOptions>(adAuthenticationSection);
         services.Configure<JwtOptions>(jwtSection);
 
-        services.AddSingleton<ISqlConnectionFactory>(_ => new SqlConnectionFactory(sqlConnectionString));
-        services.AddSingleton<IOracleConnectionFactory>(_ => new OracleConnectionFactory(oracleConnectionString));
+        services.AddSingleton<IPrimarySqlConnectionFactory>(
+            _ => new PrimarySqlConnectionFactory(primarySqlConnectionString));
+        services.AddSingleton<ISecondarySqlConnectionFactory>(
+            _ => new SecondarySqlConnectionFactory(secondarySqlConnectionString));
+        services.AddSingleton<IOracleConnectionFactory>(
+            _ => new OracleConnectionFactory(oracleConnectionString));
+
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
         services.AddHttpClient<IAuthenticationService, AuthenticationService>(client =>
@@ -79,5 +76,16 @@ public static class DependencyInjection
         services.AddScoped<IDivisionService, DivisionService>();
 
         return services;
+    }
+
+    private static string GetRequiredConnectionString(
+        IConfiguration configuration,
+        string name)
+    {
+        var connectionString = configuration.GetConnectionString(name);
+
+        return string.IsNullOrWhiteSpace(connectionString)
+            ? throw new InvalidOperationException($"Connection string '{name}' is not configured.")
+            : connectionString;
     }
 }
