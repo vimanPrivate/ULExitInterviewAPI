@@ -1,7 +1,11 @@
 namespace ULExitInterview.Application.Authentication;
 
 public sealed record LoginResult(
-    bool IsSuccess,
-    string? AccessToken,
-    DateTimeOffset? ExpiresAtUtc,
-    string? ErrorMessage);
+    int ResponseCode,
+    string? Token,
+    string StaffNo,
+    string Email,
+    string ContactNo,
+    string Designation,
+    string Department,
+    IReadOnlyList<string> Roles);
