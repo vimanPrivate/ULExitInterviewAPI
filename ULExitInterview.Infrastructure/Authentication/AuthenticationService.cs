@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -10,9 +11,14 @@ namespace ULExitInterview.Infrastructure.Authentication;
 internal sealed class AuthenticationService(
     HttpClient httpClient,
     IOptions<AdAuthenticationOptions> options,
+    IJwtTokenService jwtTokenService,
     ILogger<AuthenticationService> logger) : IAuthenticationService
 {
     private readonly AdAuthenticationOptions _options = options.Value;
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     public async Task<LoginResult> LoginAsync(
         LoginRequest request,
@@ -23,7 +29,7 @@ internal sealed class AuthenticationService(
         var username = request.Username.Trim();
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return InvalidCredentials();
+            return AuthenticationFailed();
         }
 
         var payload = new AdLoginRequest(username, request.Password, _options.AppSecAppId);
@@ -44,7 +50,7 @@ internal sealed class AuthenticationService(
 
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.BadRequest)
             {
-                return InvalidCredentials();
+                return AuthenticationFailed();
             }
 
             if (!response.IsSuccessStatusCode)
@@ -53,32 +59,115 @@ internal sealed class AuthenticationService(
                     "AD authentication service returned HTTP status {StatusCode}.",
                     (int)response.StatusCode);
 
-                return new LoginResult(false, null, null, "Authentication service is currently unavailable.");
+                return AuthenticationFailed();
             }
 
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var adResults = await JsonSerializer.DeserializeAsync<List<AdLoginResponse>>(
+                stream,
+                JsonOptions,
+                cancellationToken);
 
-            // The upstream API's success response contract is preserved for the next mapping step.
-            // A successful HTTP response confirms the credentials were accepted by the configured service.
-            return new LoginResult(true, responseBody, null, null);
+            var adUser = adResults?.FirstOrDefault();
+            if (adUser is null || adUser.ResponseCode != "1")
+            {
+                return AuthenticationFailed();
+            }
+
+            var roles = adUser.Roles?
+                .Where(role => !string.IsNullOrWhiteSpace(role.RoleName))
+                .Select(role => role.RoleName.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? [];
+
+            // AD credentials are valid, but AppSec has not authorized this user for the application.
+            if (roles.Count == 0)
+            {
+                return new LoginResult(
+                    2,
+                    null,
+                    adUser.UserId ?? username,
+                    adUser.Email ?? string.Empty,
+                    adUser.Mobile ?? string.Empty,
+                    adUser.Title ?? string.Empty,
+                    adUser.Department ?? string.Empty,
+                    []);
+            }
+
+            var staffNo = adUser.UserId ?? username;
+            var email = adUser.Email ?? string.Empty;
+            var designation = adUser.Title ?? string.Empty;
+            var department = adUser.Department ?? string.Empty;
+
+            var token = jwtTokenService.GenerateToken(
+                staffNo,
+                email,
+                designation,
+                department,
+                roles);
+
+            return new LoginResult(
+                1,
+                token,
+                staffNo,
+                email,
+                adUser.Mobile ?? string.Empty,
+                designation,
+                department,
+                roles);
+        }
+        catch (JsonException exception)
+        {
+            logger.LogError(exception, "AD authentication service returned an invalid response payload.");
+            return AuthenticationFailed();
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning("AD authentication service request timed out.");
-            return new LoginResult(false, null, null, "Authentication service timed out.");
+            return AuthenticationFailed();
         }
         catch (HttpRequestException exception)
         {
             logger.LogError(exception, "Unable to reach the AD authentication service.");
-            return new LoginResult(false, null, null, "Authentication service is currently unavailable.");
+            return AuthenticationFailed();
         }
     }
 
-    private static LoginResult InvalidCredentials()
-        => new(false, null, null, "Invalid username or password.");
+    private static LoginResult AuthenticationFailed()
+        => new(0, null, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, []);
 
     private sealed record AdLoginRequest(
         [property: JsonPropertyName("USERNAME")] string Username,
         [property: JsonPropertyName("PASSWORD")] string Password,
         [property: JsonPropertyName("APPSECAPPID")] string AppSecAppId);
+
+    private sealed class AdLoginResponse
+    {
+        [JsonPropertyName("RESPONSE_CODE")]
+        public string? ResponseCode { get; init; }
+
+        [JsonPropertyName("USERID")]
+        public string? UserId { get; init; }
+
+        [JsonPropertyName("EMAIL")]
+        public string? Email { get; init; }
+
+        [JsonPropertyName("TITLE")]
+        public string? Title { get; init; }
+
+        [JsonPropertyName("DEPARTMENT")]
+        public string? Department { get; init; }
+
+        [JsonPropertyName("MOBILE")]
+        public string? Mobile { get; init; }
+
+        [JsonPropertyName("ROLES")]
+        public List<AdRole>? Roles { get; init; }
+    }
+
+    private sealed class AdRole
+    {
+        [JsonPropertyName("ROLE_NAME")]
+        public string RoleName { get; init; } = string.Empty;
+    }
 }
