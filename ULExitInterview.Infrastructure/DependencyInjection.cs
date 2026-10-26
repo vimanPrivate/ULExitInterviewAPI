@@ -31,12 +31,8 @@ public static class DependencyInjection
         var adAuthenticationOptions = adAuthenticationSection.Get<AdAuthenticationOptions>()
             ?? throw new InvalidOperationException("AD authentication configuration is missing.");
 
-        if (string.IsNullOrWhiteSpace(adAuthenticationOptions.Url))
-        {
-            throw new InvalidOperationException("AD authentication URL is not configured.");
-        }
-
-        if (!Uri.TryCreate(adAuthenticationOptions.Url, UriKind.Absolute, out var authenticationUri) ||
+        if (string.IsNullOrWhiteSpace(adAuthenticationOptions.Url) ||
+            !Uri.TryCreate(adAuthenticationOptions.Url, UriKind.Absolute, out var authenticationUri) ||
             authenticationUri.Scheme != Uri.UriSchemeHttps)
         {
             throw new InvalidOperationException("AD authentication URL must be a valid HTTPS URL.");
@@ -52,10 +48,24 @@ public static class DependencyInjection
             throw new InvalidOperationException("AD authentication APPSECAPPID is not configured.");
         }
 
+        var jwtSection = configuration.GetSection(JwtOptions.SectionName);
+        var jwtOptions = jwtSection.Get<JwtOptions>()
+            ?? throw new InvalidOperationException("JWT configuration is missing.");
+
+        if (string.IsNullOrWhiteSpace(jwtOptions.Issuer) ||
+            string.IsNullOrWhiteSpace(jwtOptions.Audience) ||
+            string.IsNullOrWhiteSpace(jwtOptions.Key) ||
+            jwtOptions.Key.Length < 32)
+        {
+            throw new InvalidOperationException("JWT Issuer, Audience and a signing key of at least 32 characters must be configured.");
+        }
+
         services.Configure<AdAuthenticationOptions>(adAuthenticationSection);
+        services.Configure<JwtOptions>(jwtSection);
 
         services.AddSingleton<ISqlConnectionFactory>(_ => new SqlConnectionFactory(sqlConnectionString));
         services.AddSingleton<IOracleConnectionFactory>(_ => new OracleConnectionFactory(oracleConnectionString));
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
         services.AddHttpClient<IAuthenticationService, AuthenticationService>(client =>
         {
