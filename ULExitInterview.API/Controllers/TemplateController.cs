@@ -17,22 +17,22 @@ public sealed class TemplateController(ITemplateService templateService) : Contr
         return Ok(templates);
     }
 
-    [HttpGet("search")]
+    [HttpPost("search")]
     [ProducesResponseType(typeof(IReadOnlyList<TemplateDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<IReadOnlyList<TemplateDto>>> SearchTemplates([FromQuery] int? templateId, [FromQuery] string? templateName, CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<TemplateDto>>> SearchTemplates([FromBody] TemplateSearchRequest request, CancellationToken cancellationToken)
     {
-        if (templateId is null && string.IsNullOrWhiteSpace(templateName))
+        if (request.TemplateId is null && string.IsNullOrWhiteSpace(request.TemplateName))
         {
             return BadRequest("Either templateId or templateName must be provided.");
         }
 
-        if (templateId <= 0)
+        if (request.TemplateId <= 0)
         {
             return BadRequest("templateId must be greater than zero.");
         }
 
-        var templates = await templateService.SearchAsync(templateId, templateName, cancellationToken);
+        var templates = await templateService.SearchAsync(request.TemplateId, request.TemplateName, cancellationToken);
         return Ok(templates);
     }
 }
