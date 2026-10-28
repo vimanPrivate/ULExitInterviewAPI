@@ -72,7 +72,7 @@ public static class DependencyInjection
                     : 30);
         });
 
-        services.AddScoped<IDivisionRepository, OracleDivisionRepository>();
+        services.AddScoped<IDivisionRepository, SQLDivisionRepository>();
         services.AddScoped<IDivisionService, DivisionService>();
 
         return services;
