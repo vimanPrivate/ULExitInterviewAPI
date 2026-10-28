@@ -4,43 +4,240 @@ using ULExitInterview.Application.Templates;
 
 namespace ULExitInterview.Infrastructure.Templates;
 
-internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory connectionFactory) : ITemplateRepository
+internal sealed class SQLTemplateRepository(
+    IPrimarySqlConnectionFactory primaryConnectionFactory,
+    ISecondarySqlConnectionFactory secondaryConnectionFactory) : ITemplateRepository
 {
-    private const string Query = """
-        SELECT
-            ID,
-            Name,
-            Description
+    private const string TemplateQuery = """
+        SELECT ID, Name, Description, CreatedDate, CreatedUser, UpdatedDate, UpdateUser, IsActive
         FROM dbo.tblTemplate
-        WHERE IsActive = 1
-        ORDER BY ID
+        ORDER BY ID;
+
+        SELECT
+            q.ID,
+            q.Template_ID,
+            qt.Code AS QuestionTypeCode,
+            q.Question,
+            q.[Order],
+            q.IsRequired
+        FROM dbo.tblQuestions q
+        INNER JOIN dbo.tblQuestionTypes qt ON qt.ID = q.QuestionTypes_ID
+        ORDER BY q.Template_ID, q.[Order], q.ID;
+
+        SELECT ID, Questions_ID, ChoiceName, [Order]
+        FROM dbo.tblMultipleQuestionedOrChoices
+        ORDER BY Questions_ID, [Order], ID;
+
+        SELECT ID, Template_ID, Division, CostCenter
+        FROM dbo.tblAssignedCostCenters
+        ORDER BY Template_ID, ID;
+        """;
+
+    private const string CostCenterQuery = """
+        SELECT DISTINCT DIVISION_CODE, COST_CENTER_CODE, COST_CENTER_NAME
+        FROM TBL_DIVISION_DEPARTMENT
+        WHERE IS_ACTIVE = 1;
         """;
 
     public async Task<IReadOnlyList<TemplateDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        await using var connection = connectionFactory.CreateConnection();
+        var costCenterNames = await GetCostCenterNamesAsync(cancellationToken);
+        var templateBuilders = new Dictionary<int, TemplateBuilder>();
+
+        await using var connection = primaryConnectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = Query;
+        command.CommandText = TemplateQuery;
         command.CommandType = CommandType.Text;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        var templates = new List<TemplateDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var id = reader.GetInt32(reader.GetOrdinal("ID"));
+            templateBuilders[id] = new TemplateBuilder(
+                id,
+                GetString(reader, "Name"),
+                reader.GetBoolean(reader.GetOrdinal("IsActive")) ? "Active" : "Inactive",
+                GetNullableString(reader, "Description"),
+                reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
+                GetString(reader, "CreatedUser"),
+                GetNullableDateTime(reader, "UpdatedDate"),
+                GetNullableString(reader, "UpdateUser"));
+        }
 
-        var idOrdinal = reader.GetOrdinal("ID");
-        var nameOrdinal = reader.GetOrdinal("Name");
-        var descriptionOrdinal = reader.GetOrdinal("Description");
+        await reader.NextResultAsync(cancellationToken);
+
+        var questionBuilders = new Dictionary<int, QuestionBuilder>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var questionId = reader.GetInt32(reader.GetOrdinal("ID"));
+            var templateId = reader.GetInt32(reader.GetOrdinal("Template_ID"));
+
+            if (!templateBuilders.TryGetValue(templateId, out var template))
+            {
+                continue;
+            }
+
+            var question = new QuestionBuilder(
+                questionId,
+                GetString(reader, "QuestionTypeCode"),
+                GetString(reader, "Question"),
+                reader.GetBoolean(reader.GetOrdinal("IsRequired")),
+                reader.GetInt32(reader.GetOrdinal("Order")));
+
+            template.Questions.Add(question);
+            questionBuilders[questionId] = question;
+        }
+
+        await reader.NextResultAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            templates.Add(new TemplateDto(
-                reader.GetInt32(idOrdinal),
-                reader.GetString(nameOrdinal).Trim(),
-                reader.IsDBNull(descriptionOrdinal) ? null : reader.GetString(descriptionOrdinal).Trim()));
+            var questionId = reader.GetInt32(reader.GetOrdinal("Questions_ID"));
+            if (!questionBuilders.TryGetValue(questionId, out var question))
+            {
+                continue;
+            }
+
+            question.Choices.Add(new QuestionChoiceDto(
+                reader.GetInt32(reader.GetOrdinal("ID")),
+                GetString(reader, "ChoiceName"),
+                reader.GetInt32(reader.GetOrdinal("Order"))));
         }
 
-        return templates;
+        await reader.NextResultAsync(cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var templateId = reader.GetInt32(reader.GetOrdinal("Template_ID"));
+            if (!templateBuilders.TryGetValue(templateId, out var template))
+            {
+                continue;
+            }
+
+            var division = GetString(reader, "Division");
+            var code = GetString(reader, "CostCenter");
+            costCenterNames.TryGetValue(CreateCostCenterKey(division, code), out var costCenterName);
+
+            template.AssignedCostCenters.Add(new AssignedCostCenterDto(
+                code,
+                costCenterName ?? string.Empty,
+                division));
+        }
+
+        return templateBuilders.Values
+            .Select(x => x.ToDto())
+            .ToList();
+    }
+
+    private async Task<Dictionary<string, string>> GetCostCenterNamesAsync(CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        await using var connection = secondaryConnectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = CostCenterQuery;
+        command.CommandType = CommandType.Text;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var division = GetString(reader, "DIVISION_CODE");
+            var code = GetString(reader, "COST_CENTER_CODE");
+            var name = CleanCostCenterName(GetString(reader, "COST_CENTER_NAME"));
+            result[CreateCostCenterKey(division, code)] = name;
+        }
+
+        return result;
+    }
+
+    private static string CreateCostCenterKey(string division, string costCenter)
+        => $"{division}|{costCenter}";
+
+    private static string GetString(IDataRecord record, string columnName)
+    {
+        var ordinal = record.GetOrdinal(columnName);
+        return record.IsDBNull(ordinal) ? string.Empty : Convert.ToString(record.GetValue(ordinal))?.Trim() ?? string.Empty;
+    }
+
+    private static string? GetNullableString(IDataRecord record, string columnName)
+    {
+        var ordinal = record.GetOrdinal(columnName);
+        return record.IsDBNull(ordinal) ? null : Convert.ToString(record.GetValue(ordinal))?.Trim();
+    }
+
+    private static DateTime? GetNullableDateTime(IDataRecord record, string columnName)
+    {
+        var ordinal = record.GetOrdinal(columnName);
+        return record.IsDBNull(ordinal) ? null : record.GetDateTime(ordinal);
+    }
+
+    private static string CleanCostCenterName(string costCenterName)
+    {
+        const string prefix = "MANAGER ";
+        return costCenterName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? costCenterName[prefix.Length..].Trim()
+            : costCenterName;
+    }
+
+    private sealed class TemplateBuilder(
+        int templateId,
+        string name,
+        string status,
+        string? description,
+        DateTime createdDate,
+        string createdUser,
+        DateTime? updatedDate,
+        string? updateUser)
+    {
+        public int TemplateId { get; } = templateId;
+        public string Name { get; } = name;
+        public string Status { get; } = status;
+        public string? Description { get; } = description;
+        public DateTime CreatedDate { get; } = createdDate;
+        public string CreatedUser { get; } = createdUser;
+        public DateTime? UpdatedDate { get; } = updatedDate;
+        public string? UpdateUser { get; } = updateUser;
+        public List<QuestionBuilder> Questions { get; } = [];
+        public List<AssignedCostCenterDto> AssignedCostCenters { get; } = [];
+
+        public TemplateDto ToDto() => new(
+            TemplateId,
+            Name,
+            Status,
+            Description,
+            CreatedDate,
+            CreatedUser,
+            UpdatedDate,
+            UpdateUser,
+            Questions.Select(x => x.ToDto()).ToList(),
+            AssignedCostCenters);
+    }
+
+    private sealed class QuestionBuilder(
+        int questionId,
+        string questionTypeCode,
+        string questionText,
+        bool isRequired,
+        int sortOrder)
+    {
+        public int QuestionId { get; } = questionId;
+        public string QuestionTypeCode { get; } = questionTypeCode;
+        public string QuestionText { get; } = questionText;
+        public bool IsRequired { get; } = isRequired;
+        public int SortOrder { get; } = sortOrder;
+        public List<QuestionChoiceDto> Choices { get; } = [];
+
+        public TemplateQuestionDto ToDto() => new(
+            QuestionId,
+            QuestionTypeCode,
+            QuestionText,
+            IsRequired,
+            SortOrder,
+            Choices);
     }
 }
