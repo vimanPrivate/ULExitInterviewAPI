@@ -4,21 +4,17 @@ using ULExitInterview.Application.Divisions;
 
 namespace ULExitInterview.Infrastructure.Divisions;
 
-internal sealed class OracleDivisionRepository(IOracleConnectionFactory connectionFactory) : IDivisionRepository
+internal sealed class OracleDivisionRepository(ISecondarySqlConnectionFactory connectionFactory) : IDivisionRepository
 {
-    // Replace the table/view and column names below with the actual Oracle HR schema names.
-    // The query deliberately returns a flat result set; grouping is performed in .NET so the API
-    // exposes one division with its departments instead of repeating the division for every row.
     private const string Query = """
-        SELECT
-            d.DIVISION_CODE,
-            d.DIVISION_NAME,
-            dep.DEPARTMENT_CODE,
-            dep.DEPARTMENT_NAME
-        FROM DIVISION d
-        LEFT JOIN DEPARTMENT dep
-            ON dep.DIVISION_CODE = d.DIVISION_CODE
-        ORDER BY d.DIVISION_NAME, dep.DEPARTMENT_NAME
+        SELECT DISTINCT
+            DIVISION_CODE,
+            DIVISION,
+            COST_CENTER_CODE,
+            COST_CENTER_NAME
+        FROM TBL_DIVISION_DEPARTMENT
+        WHERE IS_ACTIVE = 1
+        ORDER BY DIVISION_CODE
         """;
 
     public async Task<IReadOnlyList<DivisionDto>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -35,9 +31,9 @@ internal sealed class OracleDivisionRepository(IOracleConnectionFactory connecti
         var divisions = new Dictionary<string, DivisionBuilder>(StringComparer.OrdinalIgnoreCase);
 
         var divisionCodeOrdinal = reader.GetOrdinal("DIVISION_CODE");
-        var divisionNameOrdinal = reader.GetOrdinal("DIVISION_NAME");
-        var departmentCodeOrdinal = reader.GetOrdinal("DEPARTMENT_CODE");
-        var departmentNameOrdinal = reader.GetOrdinal("DEPARTMENT_NAME");
+        var divisionNameOrdinal = reader.GetOrdinal("DIVISION");
+        var costCenterCodeOrdinal = reader.GetOrdinal("COST_CENTER_CODE");
+        var costCenterNameOrdinal = reader.GetOrdinal("COST_CENTER_NAME");
 
         while (await reader.ReadAsync(cancellationToken))
         {
@@ -55,21 +51,18 @@ internal sealed class OracleDivisionRepository(IOracleConnectionFactory connecti
                 divisions.Add(divisionCode, division);
             }
 
-            var departmentCode = GetString(reader, departmentCodeOrdinal);
-            var departmentName = GetString(reader, departmentNameOrdinal);
+            var costCenterCode = GetString(reader, costCenterCodeOrdinal);
+            var costCenterName = GetString(reader, costCenterNameOrdinal);
 
-            if (!string.IsNullOrWhiteSpace(departmentCode) &&
-                !division.Departments.Any(x => string.Equals(
-                    x.DepartmentCode,
-                    departmentCode,
-                    StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrWhiteSpace(costCenterCode) &&
+                !division.CostCenters.Any(x => string.Equals(x.CostCenterCode, costCenterCode, StringComparison.OrdinalIgnoreCase)))
             {
-                division.Departments.Add(new DepartmentDto(departmentCode, departmentName));
+                division.CostCenters.Add(new CostCenterDto(costCenterCode, costCenterName));
             }
         }
 
         return divisions.Values
-            .Select(x => new DivisionDto(x.DivisionCode, x.DivisionName, x.Departments))
+            .Select(x => new DivisionDto(x.DivisionCode, x.DivisionName, x.CostCenters))
             .ToList();
     }
 
@@ -82,6 +75,6 @@ internal sealed class OracleDivisionRepository(IOracleConnectionFactory connecti
     {
         public string DivisionCode { get; } = divisionCode;
         public string DivisionName { get; } = divisionName;
-        public List<DepartmentDto> Departments { get; } = [];
+        public List<CostCenterDto> CostCenters { get; } = [];
     }
 }

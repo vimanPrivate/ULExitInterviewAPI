@@ -1,5 +1,5 @@
 namespace ULExitInterview.Application.Divisions;
 
-public sealed record DepartmentDto(
-    string DepartmentCode,
-    string DepartmentName);
+public sealed record CostCenterDto(
+    string CostCenterCode,
+    string CostCenterName);
