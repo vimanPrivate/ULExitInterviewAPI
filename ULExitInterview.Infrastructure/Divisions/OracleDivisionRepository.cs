@@ -40,7 +40,7 @@ internal sealed class OracleDivisionRepository(ISecondarySqlConnectionFactory co
             var divisionCode = GetString(reader, divisionCodeOrdinal);
             var divisionName = GetString(reader, divisionNameOrdinal);
             var costCenterCode = GetString(reader, costCenterCodeOrdinal);
-            var costCenterName = GetString(reader, costCenterNameOrdinal);
+            var costCenterName = CleanCostCenterName(GetString(reader, costCenterNameOrdinal));
 
             if (string.IsNullOrWhiteSpace(divisionCode))
             {
@@ -69,6 +69,15 @@ internal sealed class OracleDivisionRepository(ISecondarySqlConnectionFactory co
         => record.IsDBNull(ordinal)
             ? string.Empty
             : Convert.ToString(record.GetValue(ordinal))?.Trim() ?? string.Empty;
+
+    private static string CleanCostCenterName(string costCenterName)
+    {
+        const string prefix = "MANAGER ";
+
+        return costCenterName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? costCenterName[prefix.Length..].Trim()
+            : costCenterName;
+    }
 
     private sealed class DivisionBuilder(string divisionCode, string divisionName)
     {
