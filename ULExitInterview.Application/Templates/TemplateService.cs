@@ -4,4 +4,7 @@ public sealed class TemplateService(ITemplateRepository templateRepository) : IT
 {
     public Task<IReadOnlyList<TemplateDto>> GetAllAsync(CancellationToken cancellationToken = default)
         => templateRepository.GetAllAsync(cancellationToken);
+
+    public Task<IReadOnlyList<TemplateDto>> SearchAsync(int? templateId, string? templateName, CancellationToken cancellationToken = default)
+        => templateRepository.SearchAsync(templateId, templateName, cancellationToken);
 }
