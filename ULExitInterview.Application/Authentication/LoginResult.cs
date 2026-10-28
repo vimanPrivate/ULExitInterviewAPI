@@ -4,6 +4,7 @@ public sealed record LoginResult(
     int ResponseCode,
     string? Token,
     string StaffNo,
+    string Name,
     string Email,
     string ContactNo,
     string Designation,
