@@ -20,9 +20,7 @@ internal sealed class AuthenticationService(
         PropertyNameCaseInsensitive = true
     };
 
-    public async Task<LoginResult> LoginAsync(
-        LoginRequest request,
-        CancellationToken cancellationToken = default)
+    public async Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -43,10 +41,7 @@ internal sealed class AuthenticationService(
 
         try
         {
-            using var response = await httpClient.SendAsync(
-                httpRequest,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
+            using var response = await httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.BadRequest)
             {
@@ -55,18 +50,12 @@ internal sealed class AuthenticationService(
 
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogWarning(
-                    "AD authentication service returned HTTP status {StatusCode}.",
-                    (int)response.StatusCode);
-
+                logger.LogWarning("AD authentication service returned HTTP status {StatusCode}.", (int)response.StatusCode);
                 return AuthenticationFailed();
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            var adResults = await JsonSerializer.DeserializeAsync<List<AdLoginResponse>>(
-                stream,
-                JsonOptions,
-                cancellationToken);
+            var adResults = await JsonSerializer.DeserializeAsync<List<AdLoginResponse>>(stream, JsonOptions, cancellationToken);
 
             var adUser = adResults?.FirstOrDefault();
             if (adUser is null || adUser.ResponseCode != "1")
@@ -80,41 +69,22 @@ internal sealed class AuthenticationService(
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList() ?? [];
 
-            // AD credentials are valid, but AppSec has not authorized this user for the application.
-            if (roles.Count == 0)
-            {
-                return new LoginResult(
-                    2,
-                    null,
-                    adUser.UserId ?? username,
-                    adUser.Email ?? string.Empty,
-                    adUser.Mobile ?? string.Empty,
-                    adUser.Title ?? string.Empty,
-                    adUser.Department ?? string.Empty,
-                    []);
-            }
-
             var staffNo = adUser.UserId ?? username;
+            var name = adUser.DisplayName ?? string.Empty;
             var email = adUser.Email ?? string.Empty;
+            var contactNo = adUser.Mobile ?? string.Empty;
             var designation = adUser.Title ?? string.Empty;
             var department = adUser.Department ?? string.Empty;
 
-            var token = jwtTokenService.GenerateToken(
-                staffNo,
-                email,
-                designation,
-                department,
-                roles);
+            // AD credentials are valid, but AppSec has not authorized this user for the application.
+            if (roles.Count == 0)
+            {
+                return new LoginResult(2, null, staffNo, name, email, contactNo, designation, department, []);
+            }
 
-            return new LoginResult(
-                1,
-                token,
-                staffNo,
-                email,
-                adUser.Mobile ?? string.Empty,
-                designation,
-                department,
-                roles);
+            var token = jwtTokenService.GenerateToken(staffNo, email, designation, department, roles);
+
+            return new LoginResult(1, token, staffNo, name, email, contactNo, designation, department, roles);
         }
         catch (JsonException exception)
         {
@@ -134,7 +104,7 @@ internal sealed class AuthenticationService(
     }
 
     private static LoginResult AuthenticationFailed()
-        => new(0, null, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, []);
+        => new(0, null, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, []);
 
     private sealed record AdLoginRequest(
         [property: JsonPropertyName("USERNAME")] string Username,
@@ -148,6 +118,9 @@ internal sealed class AuthenticationService(
 
         [JsonPropertyName("USERID")]
         public string? UserId { get; init; }
+
+        [JsonPropertyName("DISPLAYNAME")]
+        public string? DisplayName { get; init; }
 
         [JsonPropertyName("EMAIL")]
         public string? Email { get; init; }
