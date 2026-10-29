@@ -17,4 +17,13 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         await exitStaffService.InsertAnswersAsync(request, cancellationToken);
         return Ok(new { message = "Answers saved successfully." });
     }
+
+    [HttpPost("StaffInfo")]
+    [ProducesResponseType(typeof(StaffInfoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<StaffInfoDto>> StaffInfo([FromBody] StaffInfoRequest request, CancellationToken cancellationToken)
+    {
+        var staffInfo = await exitStaffService.GetStaffInfoAsync(request.StaffId, cancellationToken);
+        return staffInfo is null ? NotFound(new { message = "Staff member not found." }) : Ok(staffInfo);
+    }
 }
