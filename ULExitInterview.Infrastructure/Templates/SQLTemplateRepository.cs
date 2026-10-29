@@ -84,8 +84,8 @@ internal sealed class SQLTemplateRepository(
                           AND CostCenter = @CostCenter
                     )
                     BEGIN
-                        INSERT INTO dbo.tblAssignedCostCenters (Template_ID, Division, CostCenter)
-                        VALUES (@TemplateId, @Division, @CostCenter);
+                        INSERT INTO dbo.tblAssignedCostCenters (Template_ID, Division, CostCenter, IsActive)
+                        VALUES (@TemplateId, @Division, @CostCenter, 1);
                     END;
                     """;
                 AddParameter(command, "@TemplateId", request.TemplateId);
