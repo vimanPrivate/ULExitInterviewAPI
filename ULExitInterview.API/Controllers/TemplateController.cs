@@ -83,4 +83,29 @@ public sealed class TemplateController(ITemplateService templateService) : Contr
             return BadRequest(ex.Message);
         }
     }
+
+    [HttpPost("assignCostCenters")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult> AssignCostCenters([FromBody] AssignCostCentersRequest request, CancellationToken cancellationToken)
+    {
+        var duplicateCostCenters = request.CostCenters
+            .GroupBy(x => $"{x.DivisionCode.Trim()}|{x.CostCenterCode.Trim()}", StringComparer.OrdinalIgnoreCase)
+            .Any(x => x.Count() > 1);
+
+        if (duplicateCostCenters)
+        {
+            return BadRequest("Duplicate division and cost center combinations are not allowed.");
+        }
+
+        try
+        {
+            await templateService.AssignCostCentersAsync(request, cancellationToken);
+            return Ok(new { message = "Cost centers assigned successfully." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
 }
