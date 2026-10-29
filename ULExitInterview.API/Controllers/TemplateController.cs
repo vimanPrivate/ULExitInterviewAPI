@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ULExitInterview.Application.Templates;
@@ -74,15 +73,9 @@ public sealed class TemplateController(ITemplateService templateService) : Contr
             }
         }
 
-        var createdUser = User.FindFirstValue("staff_no") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(createdUser))
-        {
-            return BadRequest("Created user could not be determined from the authenticated user.");
-        }
-
         try
         {
-            var templateId = await templateService.CreateAsync(request, createdUser, cancellationToken);
+            var templateId = await templateService.CreateAsync(request, cancellationToken);
             return StatusCode(StatusCodes.Status201Created, new { templateId });
         }
         catch (InvalidOperationException ex)
