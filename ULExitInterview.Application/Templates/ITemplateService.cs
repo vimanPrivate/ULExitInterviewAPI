@@ -7,4 +7,5 @@ public interface ITemplateService
     Task<int> CreateAsync(CreateTemplateRequest request, CancellationToken cancellationToken = default);
     Task AssignCostCentersAsync(AssignCostCentersRequest request, CancellationToken cancellationToken = default);
     Task UnassignCostCentersAsync(UnassignCostCentersRequest request, CancellationToken cancellationToken = default);
+    Task DeleteTemplatesAsync(DeleteTemplatesRequest request, CancellationToken cancellationToken = default);
 }
