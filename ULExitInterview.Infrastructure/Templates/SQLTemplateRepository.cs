@@ -60,6 +60,59 @@ internal sealed class SQLTemplateRepository(
         }
     }
 
+    public async Task AssignCostCentersAsync(AssignCostCentersRequest request, CancellationToken cancellationToken = default)
+    {
+        await using var connection = primaryConnectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            await EnsureTemplateExistsAsync(connection, transaction, request.TemplateId, cancellationToken);
+
+            foreach (var costCenter in request.CostCenters)
+            {
+                await using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = """
+                    IF NOT EXISTS
+                    (
+                        SELECT 1
+                        FROM dbo.tblAssignedCostCenters
+                        WHERE Template_ID = @TemplateId
+                          AND Division = @Division
+                          AND CostCenter = @CostCenter
+                    )
+                    BEGIN
+                        INSERT INTO dbo.tblAssignedCostCenters (Template_ID, Division, CostCenter)
+                        VALUES (@TemplateId, @Division, @CostCenter);
+                    END;
+                    """;
+                AddParameter(command, "@TemplateId", request.TemplateId);
+                AddParameter(command, "@Division", costCenter.DivisionCode.Trim());
+                AddParameter(command, "@CostCenter", costCenter.CostCenterCode.Trim());
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private static async Task EnsureTemplateExistsAsync(DbConnection connection, DbTransaction transaction, int templateId, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT COUNT(1) FROM dbo.tblTemplate WHERE ID = @TemplateId;";
+        AddParameter(command, "@TemplateId", templateId);
+        var count = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+        if (count == 0) throw new InvalidOperationException($"Template ID '{templateId}' does not exist.");
+    }
+
     private static async Task<int> InsertTemplateAsync(DbConnection connection, DbTransaction transaction, CreateTemplateRequest request, string createdUser, bool isActive, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
