@@ -210,7 +210,7 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
         await using var command = connection.CreateCommand();
         command.CommandType = CommandType.Text;
         command.CommandText = """
-            SELECT ID, Name, Description, CreatedDate, CreatedUser, UpdatedDate, UpdateUser, IsActive
+            SELECT ID, Name, Description, CreatedDate, CreatedUser, UpdatedDate, UpdateUser, IsActive, IsDraft
             FROM dbo.tblTemplate
             WHERE (@TemplateId IS NULL OR ID = @TemplateId)
               AND (@TemplateName IS NULL OR Name LIKE '%' + @TemplateName + '%')
@@ -247,7 +247,9 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
         while (await reader.ReadAsync(cancellationToken))
         {
             var id = reader.GetInt32(reader.GetOrdinal("ID"));
-            templateBuilders[id] = new TemplateBuilder(id, GetString(reader, "Name"), reader.GetBoolean(reader.GetOrdinal("IsActive")) ? "Active" : "Inactive", GetNullableString(reader, "Description"), reader.GetDateTime(reader.GetOrdinal("CreatedDate")), GetString(reader, "CreatedUser"), GetNullableDateTime(reader, "UpdatedDate"), GetNullableString(reader, "UpdateUser"));
+            var isDraftOrdinal = reader.GetOrdinal("IsDraft");
+            var isDraft = !reader.IsDBNull(isDraftOrdinal) && reader.GetBoolean(isDraftOrdinal);
+            templateBuilders[id] = new TemplateBuilder(id, GetString(reader, "Name"), reader.GetBoolean(reader.GetOrdinal("IsActive")) ? "Active" : "Inactive", isDraft, GetNullableString(reader, "Description"), reader.GetDateTime(reader.GetOrdinal("CreatedDate")), GetString(reader, "CreatedUser"), GetNullableDateTime(reader, "UpdatedDate"), GetNullableString(reader, "UpdateUser"));
         }
 
         await reader.NextResultAsync(cancellationToken);
@@ -337,11 +339,12 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
         return costCenterName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? costCenterName[prefix.Length..].Trim() : costCenterName;
     }
 
-    private sealed class TemplateBuilder(int templateId, string name, string status, string? description, DateTime createdDate, string createdUser, DateTime? updatedDate, string? updateUser)
+    private sealed class TemplateBuilder(int templateId, string name, string status, bool isDraft, string? description, DateTime createdDate, string createdUser, DateTime? updatedDate, string? updateUser)
     {
         public int TemplateId { get; } = templateId;
         public string Name { get; } = name;
         public string Status { get; } = status;
+        public bool IsDraft { get; } = isDraft;
         public string? Description { get; } = description;
         public DateTime CreatedDate { get; } = createdDate;
         public string CreatedUser { get; } = createdUser;
@@ -349,7 +352,7 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
         public string? UpdateUser { get; } = updateUser;
         public List<QuestionBuilder> Questions { get; } = [];
         public List<AssignedCostCenterDto> AssignedCostCenters { get; } = [];
-        public TemplateDto ToDto() => new(TemplateId, Name, Status, Description, CreatedDate, CreatedUser, UpdatedDate, UpdateUser, Questions.Select(x => x.ToDto()).ToList(), AssignedCostCenters);
+        public TemplateDto ToDto() => new(TemplateId, Name, Status, IsDraft, Description, CreatedDate, CreatedUser, UpdatedDate, UpdateUser, Questions.Select(x => x.ToDto()).ToList(), AssignedCostCenters);
     }
 
     private sealed class QuestionBuilder(int questionId, string questionTypeCode, string questionText, bool isRequired, int sortOrder)
