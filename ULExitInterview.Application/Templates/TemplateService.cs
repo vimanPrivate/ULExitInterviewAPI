@@ -10,4 +10,7 @@ public sealed class TemplateService(ITemplateRepository templateRepository) : IT
 
     public Task<int> CreateAsync(CreateTemplateRequest request, CancellationToken cancellationToken = default)
         => templateRepository.CreateAsync(request, cancellationToken);
+
+    public Task AssignCostCentersAsync(AssignCostCentersRequest request, CancellationToken cancellationToken = default)
+        => templateRepository.AssignCostCentersAsync(request, cancellationToken);
 }
