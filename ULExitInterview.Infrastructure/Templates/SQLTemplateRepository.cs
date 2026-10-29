@@ -65,10 +65,31 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
                 await using var command = connection.CreateCommand();
                 command.Transaction = transaction;
                 command.CommandText = """
-                    IF NOT EXISTS
+                    IF EXISTS
                     (
                         SELECT 1 FROM dbo.tblAssignedCostCenters
-                        WHERE Template_ID = @TemplateId AND Division = @Division AND CostCenter = @CostCenter
+                        WHERE Template_ID = @TemplateId
+                          AND Division = @Division
+                          AND CostCenter = @CostCenter
+                          AND IsActive = 0
+                    )
+                    BEGIN
+                        UPDATE dbo.tblAssignedCostCenters
+                        SET IsActive = 1,
+                            UpdatedUser = @CreatedUser,
+                            UpdatedDate = GETDATE()
+                        WHERE Template_ID = @TemplateId
+                          AND Division = @Division
+                          AND CostCenter = @CostCenter
+                          AND IsActive = 0;
+                    END
+                    ELSE IF NOT EXISTS
+                    (
+                        SELECT 1 FROM dbo.tblAssignedCostCenters
+                        WHERE Template_ID = @TemplateId
+                          AND Division = @Division
+                          AND CostCenter = @CostCenter
+                          AND IsActive = 1
                     )
                     BEGIN
                         INSERT INTO dbo.tblAssignedCostCenters
