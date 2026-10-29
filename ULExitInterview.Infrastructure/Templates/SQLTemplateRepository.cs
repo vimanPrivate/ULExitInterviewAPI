@@ -25,9 +25,9 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
 
         try
         {
-            var isActive = request.Status.Equals("ACTIVE", StringComparison.OrdinalIgnoreCase);
+            var isDraft = request.Status.Equals("DRAFT", StringComparison.OrdinalIgnoreCase);
             var createdUser = request.CreatedUser.Trim();
-            var templateId = await InsertTemplateAsync(connection, transaction, request, createdUser, isActive, cancellationToken);
+            var templateId = await InsertTemplateAsync(connection, transaction, request, createdUser, isDraft, cancellationToken);
 
             foreach (var question in request.Questions.OrderBy(x => x.SortOrder))
             {
@@ -142,19 +142,19 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
         if (count == 0) throw new InvalidOperationException($"Template ID '{templateId}' does not exist.");
     }
 
-    private static async Task<int> InsertTemplateAsync(DbConnection connection, DbTransaction transaction, CreateTemplateRequest request, string createdUser, bool isActive, CancellationToken cancellationToken)
+    private static async Task<int> InsertTemplateAsync(DbConnection connection, DbTransaction transaction, CreateTemplateRequest request, string createdUser, bool isDraft, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            INSERT INTO dbo.tblTemplate (Name, Description, CreatedUser, IsActive)
+            INSERT INTO dbo.tblTemplate (Name, Description, CreatedUser, IsActive, IsDraft)
             OUTPUT INSERTED.ID
-            VALUES (@Name, @Description, @CreatedUser, @IsActive);
+            VALUES (@Name, @Description, @CreatedUser, 1, @IsDraft);
             """;
         AddParameter(command, "@Name", request.Name.Trim());
         AddParameter(command, "@Description", string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim());
         AddParameter(command, "@CreatedUser", createdUser);
-        AddParameter(command, "@IsActive", isActive);
+        AddParameter(command, "@IsDraft", isDraft);
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
     }
 
