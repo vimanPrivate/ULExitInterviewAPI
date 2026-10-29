@@ -4,6 +4,7 @@ public sealed record TemplateDto(
     int TemplateId,
     string Name,
     string Status,
+    bool IsDraft,
     string? Description,
     DateTime CreatedDate,
     string CreatedUser,
