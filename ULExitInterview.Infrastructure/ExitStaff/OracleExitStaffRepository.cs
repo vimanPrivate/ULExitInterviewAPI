@@ -5,7 +5,7 @@ using ULExitInterview.Application.ExitStaff;
 
 namespace ULExitInterview.Infrastructure.ExitStaff;
 
-internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connectionFactory)
+internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connectionFactory) : IStaffInfoRepository
 {
     private const string Query = """
         SELECT
