@@ -38,6 +38,7 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
         if (!await reader.ReadAsync(cancellationToken)) return null;
 
         var joinedDate = GetNullableDateTime(reader, "INITIAL_JOINING_DATE");
+        var costCenterName = RemoveManagerPrefix(GetString(reader, "COST_CENTER_NAME"));
 
         return new StaffInfoDto(
             GetString(reader, "EMP_NUMBER"),
@@ -45,7 +46,7 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
             GetString(reader, "DIVISION_CODE"),
             GetString(reader, "DIVISION"),
             GetString(reader, "COST_CENTER_CODE"),
-            GetString(reader, "COST_CENTER_NAME"),
+            costCenterName,
             GetString(reader, "MOBILE"),
             GetString(reader, "DESIGNATION"),
             joinedDate,
@@ -53,6 +54,12 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
     }
 
     private static string BuildName(string firstName, string lastName) => string.Join(" ", new[] { firstName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    private static string RemoveManagerPrefix(string costCenterName)
+    {
+        const string prefix = "MANAGER ";
+        return costCenterName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? costCenterName[prefix.Length..].TrimStart() : costCenterName;
+    }
 
     private static string CalculateExperience(DateTime? joinedDate)
     {
