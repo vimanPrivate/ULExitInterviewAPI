@@ -21,7 +21,7 @@ internal sealed class SQLTemplateRepository(
     public Task<IReadOnlyList<TemplateDto>> SearchAsync(int? templateId, string? templateName, CancellationToken cancellationToken = default)
         => LoadTemplatesAsync(templateId, templateName, cancellationToken);
 
-    public async Task<int> CreateAsync(CreateTemplateRequest request, string createdUser, CancellationToken cancellationToken = default)
+    public async Task<int> CreateAsync(CreateTemplateRequest request, CancellationToken cancellationToken = default)
     {
         await using var connection = primaryConnectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -30,6 +30,7 @@ internal sealed class SQLTemplateRepository(
         try
         {
             var isActive = request.Status.Equals("ACTIVE", StringComparison.OrdinalIgnoreCase);
+            var createdUser = request.CreatedUser.Trim();
             var templateId = await InsertTemplateAsync(connection, transaction, request, createdUser, isActive, cancellationToken);
 
             foreach (var question in request.Questions.OrderBy(x => x.SortOrder))
