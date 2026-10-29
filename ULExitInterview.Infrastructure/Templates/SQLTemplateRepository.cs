@@ -132,6 +132,42 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
         }
     }
 
+    public async Task DeleteTemplatesAsync(DeleteTemplatesRequest request, CancellationToken cancellationToken = default)
+    {
+        await using var connection = primaryConnectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            var updatedUser = request.CreatedUser.Trim();
+
+            foreach (var templateId in request.TemplateIds)
+            {
+                await using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = """
+                    UPDATE dbo.tblTemplate
+                    SET IsActive = 0,
+                        UpdateUser = @UpdatedUser,
+                        UpdatedDate = GETDATE()
+                    WHERE ID = @TemplateId
+                      AND IsActive = 1;
+                    """;
+                AddParameter(command, "@TemplateId", templateId);
+                AddParameter(command, "@UpdatedUser", updatedUser);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
     private static async Task EnsureTemplateExistsAsync(DbConnection connection, DbTransaction transaction, int templateId, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
@@ -212,7 +248,8 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
         command.CommandText = """
             SELECT ID, Name, Description, CreatedDate, CreatedUser, UpdatedDate, UpdateUser, IsActive, IsDraft
             FROM dbo.tblTemplate
-            WHERE (@TemplateId IS NULL OR ID = @TemplateId)
+            WHERE IsActive = 1
+              AND (@TemplateId IS NULL OR ID = @TemplateId)
               AND (@TemplateName IS NULL OR Name LIKE '%' + @TemplateName + '%')
             ORDER BY ID;
 
@@ -220,7 +257,8 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
             FROM dbo.tblQuestions q
             INNER JOIN dbo.tblQuestionTypes qt ON qt.ID = q.QuestionTypes_ID
             INNER JOIN dbo.tblTemplate t ON t.ID = q.Template_ID
-            WHERE (@TemplateId IS NULL OR t.ID = @TemplateId)
+            WHERE t.IsActive = 1
+              AND (@TemplateId IS NULL OR t.ID = @TemplateId)
               AND (@TemplateName IS NULL OR t.Name LIKE '%' + @TemplateName + '%')
             ORDER BY q.Template_ID, q.[Order], q.ID;
 
@@ -228,7 +266,8 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
             FROM dbo.tblMultipleQuestionedOrChoices c
             INNER JOIN dbo.tblQuestions q ON q.ID = c.Questions_ID
             INNER JOIN dbo.tblTemplate t ON t.ID = q.Template_ID
-            WHERE (@TemplateId IS NULL OR t.ID = @TemplateId)
+            WHERE t.IsActive = 1
+              AND (@TemplateId IS NULL OR t.ID = @TemplateId)
               AND (@TemplateName IS NULL OR t.Name LIKE '%' + @TemplateName + '%')
             ORDER BY c.Questions_ID, c.[Order], c.ID;
 
@@ -236,6 +275,7 @@ internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primary
             FROM dbo.tblAssignedCostCenters a
             INNER JOIN dbo.tblTemplate t ON t.ID = a.Template_ID
             WHERE a.IsActive = 1
+              AND t.IsActive = 1
               AND (@TemplateId IS NULL OR t.ID = @TemplateId)
               AND (@TemplateName IS NULL OR t.Name LIKE '%' + @TemplateName + '%')
             ORDER BY a.Template_ID, a.ID;
