@@ -60,6 +60,20 @@ public sealed class TemplateController(ITemplateService templateService) : Contr
         }
     }
 
+    [HttpPost("deleteTemplate")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult> DeleteTemplate([FromBody] DeleteTemplatesRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.CreatedUser)) return BadRequest("createdUser is required.");
+        if (request.TemplateIds.Count == 0) return BadRequest("At least one templateId is required.");
+        if (request.TemplateIds.Any(x => x <= 0)) return BadRequest("All templateIds must be greater than zero.");
+        if (request.TemplateIds.Distinct().Count() != request.TemplateIds.Count) return BadRequest("Duplicate templateIds are not allowed.");
+
+        await templateService.DeleteTemplatesAsync(request, cancellationToken);
+        return Ok(new { message = "Templates deleted successfully." });
+    }
+
     [HttpPost("assignCostCenters")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
