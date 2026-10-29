@@ -8,6 +8,6 @@ public sealed class TemplateService(ITemplateRepository templateRepository) : IT
     public Task<IReadOnlyList<TemplateDto>> SearchAsync(int? templateId, string? templateName, CancellationToken cancellationToken = default)
         => templateRepository.SearchAsync(templateId, templateName, cancellationToken);
 
-    public Task<int> CreateAsync(CreateTemplateRequest request, string createdUser, CancellationToken cancellationToken = default)
-        => templateRepository.CreateAsync(request, createdUser, cancellationToken);
+    public Task<int> CreateAsync(CreateTemplateRequest request, CancellationToken cancellationToken = default)
+        => templateRepository.CreateAsync(request, cancellationToken);
 }
