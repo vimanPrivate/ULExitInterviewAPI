@@ -212,7 +212,8 @@ internal sealed class SQLTemplateRepository(
             SELECT a.ID, a.Template_ID, a.Division, a.CostCenter
             FROM dbo.tblAssignedCostCenters a
             INNER JOIN dbo.tblTemplate t ON t.ID = a.Template_ID
-            WHERE (@TemplateId IS NULL OR t.ID = @TemplateId)
+            WHERE a.IsActive = 1
+              AND (@TemplateId IS NULL OR t.ID = @TemplateId)
               AND (@TemplateName IS NULL OR t.Name LIKE '%' + @TemplateName + '%')
             ORDER BY a.Template_ID, a.ID;
             """;
