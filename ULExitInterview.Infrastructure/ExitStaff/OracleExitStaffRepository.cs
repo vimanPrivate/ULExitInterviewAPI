@@ -21,7 +21,7 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
             INITIAL_JOINING_DATE
         FROM HSENID.VW_HS_HR_EMPLOYEE_DETL_SLA_NEW
         WHERE EMP_NUMBER = :StaffId
-        FETCH FIRST 1 ROWS ONLY
+          AND ROWNUM = 1
         """;
 
     public async Task<StaffInfoDto?> GetStaffInfoAsync(string staffId, CancellationToken cancellationToken = default)
