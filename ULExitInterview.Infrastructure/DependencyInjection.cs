@@ -3,9 +3,11 @@ using Microsoft.Extensions.DependencyInjection;
 using ULExitInterview.Application.Abstractions.Persistence;
 using ULExitInterview.Application.Authentication;
 using ULExitInterview.Application.Divisions;
+using ULExitInterview.Application.ExitStaff;
 using ULExitInterview.Application.Templates;
 using ULExitInterview.Infrastructure.Authentication;
 using ULExitInterview.Infrastructure.Divisions;
+using ULExitInterview.Infrastructure.ExitStaff;
 using ULExitInterview.Infrastructure.Persistence;
 using ULExitInterview.Infrastructure.Templates;
 
@@ -78,6 +80,9 @@ public static class DependencyInjection
         services.AddScoped<IDivisionService, DivisionService>();
         services.AddScoped<ITemplateRepository, SQLTemplateRepository>();
         services.AddScoped<ITemplateService, TemplateService>();
+        services.AddScoped<IExitStaffRepository, SQLExitStaffRepository>();
+        services.AddScoped<IStaffInfoRepository, OracleExitStaffRepository>();
+        services.AddScoped<IExitStaffService, ExitStaffService>();
 
         return services;
     }
