@@ -69,6 +69,7 @@ internal sealed class SQLTemplateRepository(
         try
         {
             await EnsureTemplateExistsAsync(connection, transaction, request.TemplateId, cancellationToken);
+            var createdUser = request.CreatedUser.Trim();
 
             foreach (var costCenter in request.CostCenters)
             {
@@ -84,13 +85,16 @@ internal sealed class SQLTemplateRepository(
                           AND CostCenter = @CostCenter
                     )
                     BEGIN
-                        INSERT INTO dbo.tblAssignedCostCenters (Template_ID, Division, CostCenter, IsActive)
-                        VALUES (@TemplateId, @Division, @CostCenter, 1);
+                        INSERT INTO dbo.tblAssignedCostCenters
+                            (Template_ID, Division, CostCenter, IsActive, CreatedUser, CreatedDate, UpdatedUser, UpdatedDate)
+                        VALUES
+                            (@TemplateId, @Division, @CostCenter, 1, @CreatedUser, GETDATE(), NULL, NULL);
                     END;
                     """;
                 AddParameter(command, "@TemplateId", request.TemplateId);
                 AddParameter(command, "@Division", costCenter.DivisionCode.Trim());
                 AddParameter(command, "@CostCenter", costCenter.CostCenterCode.Trim());
+                AddParameter(command, "@CreatedUser", createdUser);
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
