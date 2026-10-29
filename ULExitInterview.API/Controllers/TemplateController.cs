@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ULExitInterview.Application.Templates;
@@ -34,5 +35,59 @@ public sealed class TemplateController(ITemplateService templateService) : Contr
 
         var templates = await templateService.SearchAsync(request.TemplateId, request.TemplateName, cancellationToken);
         return Ok(templates);
+    }
+
+    [HttpPost("createTemplate")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult> CreateTemplate([FromBody] CreateTemplateRequest request, CancellationToken cancellationToken)
+    {
+        if (!request.Status.Equals("DRAFT", StringComparison.OrdinalIgnoreCase) &&
+            !request.Status.Equals("ACTIVE", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest("status must be either DRAFT or ACTIVE.");
+        }
+
+        if (request.Questions.Select(x => x.SortOrder).Distinct().Count() != request.Questions.Count)
+        {
+            return BadRequest("Question sortOrder values must be unique.");
+        }
+
+        foreach (var question in request.Questions)
+        {
+            var supportsChoices = question.QuestionTypeCode.Equals("SINGLE_CHOICE", StringComparison.OrdinalIgnoreCase) ||
+                                  question.QuestionTypeCode.Equals("MULTIPLE_CHOICE", StringComparison.OrdinalIgnoreCase);
+
+            if (supportsChoices && question.Choices.Count == 0)
+            {
+                return BadRequest($"Question '{question.QuestionText}' requires at least one choice.");
+            }
+
+            if (!supportsChoices && question.Choices.Count > 0)
+            {
+                return BadRequest($"Question type '{question.QuestionTypeCode}' cannot contain choices.");
+            }
+
+            if (question.Choices.Select(x => x.SortOrder).Distinct().Count() != question.Choices.Count)
+            {
+                return BadRequest($"Choice sortOrder values must be unique for question '{question.QuestionText}'.");
+            }
+        }
+
+        var createdUser = User.FindFirstValue("staff_no") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(createdUser))
+        {
+            return BadRequest("Created user could not be determined from the authenticated user.");
+        }
+
+        try
+        {
+            var templateId = await templateService.CreateAsync(request, createdUser, cancellationToken);
+            return StatusCode(StatusCodes.Status201Created, new { templateId });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 }
