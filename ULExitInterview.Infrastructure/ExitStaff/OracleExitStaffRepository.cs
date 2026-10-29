@@ -15,6 +15,7 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
             DIVISION_CODE,
             DIVISION,
             COST_CENTER_CODE,
+            COST_CENTER_NAME,
             MOBILE,
             DESIGNATION,
             INITIAL_JOINING_DATE
@@ -37,15 +38,14 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
         if (!await reader.ReadAsync(cancellationToken)) return null;
 
         var joinedDate = GetNullableDateTime(reader, "INITIAL_JOINING_DATE");
-        var costCenterCode = GetString(reader, "COST_CENTER_CODE");
 
         return new StaffInfoDto(
             GetString(reader, "EMP_NUMBER"),
             BuildName(GetString(reader, "FIRST_NAME"), GetString(reader, "LAST_NAME")),
             GetString(reader, "DIVISION_CODE"),
             GetString(reader, "DIVISION"),
-            costCenterCode,
-            costCenterCode,
+            GetString(reader, "COST_CENTER_CODE"),
+            GetString(reader, "COST_CENTER_NAME"),
             GetString(reader, "MOBILE"),
             GetString(reader, "DESIGNATION"),
             joinedDate,
