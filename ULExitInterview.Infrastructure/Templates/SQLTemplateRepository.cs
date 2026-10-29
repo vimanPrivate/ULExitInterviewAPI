@@ -5,9 +5,7 @@ using ULExitInterview.Application.Templates;
 
 namespace ULExitInterview.Infrastructure.Templates;
 
-internal sealed class SQLTemplateRepository(
-    IPrimarySqlConnectionFactory primaryConnectionFactory,
-    ISecondarySqlConnectionFactory secondaryConnectionFactory) : ITemplateRepository
+internal sealed class SQLTemplateRepository(IPrimarySqlConnectionFactory primaryConnectionFactory, ISecondarySqlConnectionFactory secondaryConnectionFactory) : ITemplateRepository
 {
     private const string CostCenterQuery = """
         SELECT DISTINCT DIVISION_CODE, COST_CENTER_CODE, COST_CENTER_NAME
@@ -15,11 +13,9 @@ internal sealed class SQLTemplateRepository(
         WHERE IS_ACTIVE = 1;
         """;
 
-    public Task<IReadOnlyList<TemplateDto>> GetAllAsync(CancellationToken cancellationToken = default)
-        => LoadTemplatesAsync(null, null, cancellationToken);
+    public Task<IReadOnlyList<TemplateDto>> GetAllAsync(CancellationToken cancellationToken = default) => LoadTemplatesAsync(null, null, cancellationToken);
 
-    public Task<IReadOnlyList<TemplateDto>> SearchAsync(int? templateId, string? templateName, CancellationToken cancellationToken = default)
-        => LoadTemplatesAsync(templateId, templateName, cancellationToken);
+    public Task<IReadOnlyList<TemplateDto>> SearchAsync(int? templateId, string? templateName, CancellationToken cancellationToken = default) => LoadTemplatesAsync(templateId, templateName, cancellationToken);
 
     public async Task<int> CreateAsync(CreateTemplateRequest request, CancellationToken cancellationToken = default)
     {
@@ -36,18 +32,11 @@ internal sealed class SQLTemplateRepository(
             foreach (var question in request.Questions.OrderBy(x => x.SortOrder))
             {
                 var questionTypeId = await GetQuestionTypeIdAsync(connection, transaction, question.QuestionTypeCode, cancellationToken);
-                var supportsChoices = question.QuestionTypeCode.Equals("SINGLE_CHOICE", StringComparison.OrdinalIgnoreCase) ||
-                                      question.QuestionTypeCode.Equals("MULTIPLE_CHOICE", StringComparison.OrdinalIgnoreCase);
-
+                var supportsChoices = question.QuestionTypeCode.Equals("SINGLE_CHOICE", StringComparison.OrdinalIgnoreCase) || question.QuestionTypeCode.Equals("MULTIPLE_CHOICE", StringComparison.OrdinalIgnoreCase);
                 var questionId = await InsertQuestionAsync(connection, transaction, templateId, questionTypeId, question, createdUser, supportsChoices, cancellationToken);
 
-                if (supportsChoices)
-                {
-                    foreach (var choice in question.Choices.OrderBy(x => x.SortOrder))
-                    {
-                        await InsertChoiceAsync(connection, transaction, questionId, choice, cancellationToken);
-                    }
-                }
+                if (!supportsChoices) continue;
+                foreach (var choice in question.Choices.OrderBy(x => x.SortOrder)) await InsertChoiceAsync(connection, transaction, questionId, choice, cancellationToken);
             }
 
             await transaction.CommitAsync(cancellationToken);
@@ -55,7 +44,7 @@ internal sealed class SQLTemplateRepository(
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }
@@ -78,11 +67,8 @@ internal sealed class SQLTemplateRepository(
                 command.CommandText = """
                     IF NOT EXISTS
                     (
-                        SELECT 1
-                        FROM dbo.tblAssignedCostCenters
-                        WHERE Template_ID = @TemplateId
-                          AND Division = @Division
-                          AND CostCenter = @CostCenter
+                        SELECT 1 FROM dbo.tblAssignedCostCenters
+                        WHERE Template_ID = @TemplateId AND Division = @Division AND CostCenter = @CostCenter
                     )
                     BEGIN
                         INSERT INTO dbo.tblAssignedCostCenters
@@ -102,7 +88,46 @@ internal sealed class SQLTemplateRepository(
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    public async Task UnassignCostCentersAsync(UnassignCostCentersRequest request, CancellationToken cancellationToken = default)
+    {
+        await using var connection = primaryConnectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            await EnsureTemplateExistsAsync(connection, transaction, request.TemplateId, cancellationToken);
+            var updatedUser = request.CreatedUser.Trim();
+
+            foreach (var costCenter in request.CostCenters)
+            {
+                await using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = """
+                    UPDATE dbo.tblAssignedCostCenters
+                    SET IsActive = 0,
+                        UpdatedUser = @UpdatedUser,
+                        UpdatedDate = GETDATE()
+                    WHERE Template_ID = @TemplateId
+                      AND CostCenter = @CostCenter
+                      AND IsActive = 1;
+                    """;
+                AddParameter(command, "@TemplateId", request.TemplateId);
+                AddParameter(command, "@CostCenter", costCenter.CostCenter.Trim());
+                AddParameter(command, "@UpdatedUser", updatedUser);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }
@@ -140,9 +165,7 @@ internal sealed class SQLTemplateRepository(
         command.CommandText = "SELECT ID FROM dbo.tblQuestionTypes WHERE UPPER(Code) = UPPER(@Code);";
         AddParameter(command, "@Code", questionTypeCode.Trim());
         var result = await command.ExecuteScalarAsync(cancellationToken);
-        return result is null || result == DBNull.Value
-            ? throw new InvalidOperationException($"Question type '{questionTypeCode}' does not exist.")
-            : Convert.ToInt32(result);
+        return result is null || result == DBNull.Value ? throw new InvalidOperationException($"Question type '{questionTypeCode}' does not exist.") : Convert.ToInt32(result);
     }
 
     private static async Task<int> InsertQuestionAsync(DbConnection connection, DbTransaction transaction, int templateId, int questionTypeId, CreateTemplateQuestionRequest question, string createdUser, bool supportsChoices, CancellationToken cancellationToken)
@@ -170,10 +193,7 @@ internal sealed class SQLTemplateRepository(
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = """
-            INSERT INTO dbo.tblMultipleQuestionedOrChoices (Questions_ID, ChoiceName, [Order])
-            VALUES (@QuestionId, @ChoiceName, @Order);
-            """;
+        command.CommandText = "INSERT INTO dbo.tblMultipleQuestionedOrChoices (Questions_ID, ChoiceName, [Order]) VALUES (@QuestionId, @ChoiceName, @Order);";
         AddParameter(command, "@QuestionId", questionId);
         AddParameter(command, "@ChoiceName", choice.ChoiceText.Trim());
         AddParameter(command, "@Order", choice.SortOrder);
@@ -187,7 +207,6 @@ internal sealed class SQLTemplateRepository(
 
         await using var connection = primaryConnectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-
         await using var command = connection.CreateCommand();
         command.CommandType = CommandType.Text;
         command.CommandText = """
@@ -221,12 +240,10 @@ internal sealed class SQLTemplateRepository(
               AND (@TemplateName IS NULL OR t.Name LIKE '%' + @TemplateName + '%')
             ORDER BY a.Template_ID, a.ID;
             """;
-
         AddParameter(command, "@TemplateId", templateId);
         AddParameter(command, "@TemplateName", string.IsNullOrWhiteSpace(templateName) ? null : templateName.Trim());
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
         while (await reader.ReadAsync(cancellationToken))
         {
             var id = reader.GetInt32(reader.GetOrdinal("ID"));
