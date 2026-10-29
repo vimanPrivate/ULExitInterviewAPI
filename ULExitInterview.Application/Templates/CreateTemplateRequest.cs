@@ -15,6 +15,10 @@ public sealed class CreateTemplateRequest
     public string Status { get; init; } = string.Empty;
 
     [Required]
+    [StringLength(100)]
+    public string CreatedUser { get; init; } = string.Empty;
+
+    [Required]
     [MinLength(1)]
     public IReadOnlyList<CreateTemplateQuestionRequest> Questions { get; init; } = [];
 }
