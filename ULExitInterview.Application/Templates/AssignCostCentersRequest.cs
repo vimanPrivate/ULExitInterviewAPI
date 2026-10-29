@@ -8,6 +8,10 @@ public sealed class AssignCostCentersRequest
     public int TemplateId { get; init; }
 
     [Required]
+    [StringLength(20)]
+    public string CreatedUser { get; init; } = string.Empty;
+
+    [Required]
     [MinLength(1)]
     public IReadOnlyList<AssignCostCenterRequest> CostCenters { get; init; } = [];
 }
