@@ -4,4 +4,5 @@ public interface IExitStaffService
 {
     Task InsertAnswersAsync(InsertAnswersRequest request, CancellationToken cancellationToken = default);
     Task<StaffInfoDto?> GetStaffInfoAsync(string staffId, CancellationToken cancellationToken = default);
+    Task<int> CreateExitStaffFormAsync(string staffId, CancellationToken cancellationToken = default);
 }
