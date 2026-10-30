@@ -8,49 +8,45 @@ namespace ULExitInterview.Infrastructure.ExitStaff;
 internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connectionFactory) : IStaffInfoRepository
 {
     private const string Query = """
-        SELECT
-            EMP_NUMBER,
-            FIRST_NAME,
-            LAST_NAME,
-            DIVISION_CODE,
-            DIVISION,
-            COST_CENTER_CODE,
-            COST_CENTER_NAME,
-            MOBILE,
-            DESIGNATION,
-            INITIAL_JOINING_DATE
+        SELECT EMP_NUMBER, FIRST_NAME, LAST_NAME, DIVISION_CODE, DIVISION, COST_CENTER_CODE, COST_CENTER_NAME, MOBILE, DESIGNATION, INITIAL_JOINING_DATE
         FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL
-        WHERE EMP_NUMBER = :StaffId
-          AND ROWNUM = 1
+        WHERE EMP_NUMBER = :StaffId AND ROWNUM = 1
+        """;
+
+    private const string ExitFlowQuery = """
+        SELECT EMP_NUMBER, DIVISION_CODE, COST_CENTER_CODE, STATUS_EFFECTIVE_DATE
+        FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL
+        WHERE EMP_NUMBER = :StaffId AND ROWNUM = 1
         """;
 
     public async Task<StaffInfoDto?> GetStaffInfoAsync(string staffId, CancellationToken cancellationToken = default)
     {
         await using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-
         await using var command = connection.CreateCommand();
         command.CommandText = Query;
         command.CommandType = CommandType.Text;
         AddParameter(command, "StaffId", DbType.String, staffId.Trim());
-
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
 
         var joinedDate = GetNullableDateTime(reader, "INITIAL_JOINING_DATE");
         var costCenterName = RemoveManagerPrefix(GetString(reader, "COST_CENTER_NAME"));
+        return new StaffInfoDto(GetString(reader, "EMP_NUMBER"), BuildName(GetString(reader, "FIRST_NAME"), GetString(reader, "LAST_NAME")), GetString(reader, "DIVISION_CODE"), GetString(reader, "DIVISION"), GetString(reader, "COST_CENTER_CODE"), costCenterName, GetString(reader, "MOBILE"), GetString(reader, "DESIGNATION"), joinedDate, CalculateExperience(joinedDate));
+    }
 
-        return new StaffInfoDto(
-            GetString(reader, "EMP_NUMBER"),
-            BuildName(GetString(reader, "FIRST_NAME"), GetString(reader, "LAST_NAME")),
-            GetString(reader, "DIVISION_CODE"),
-            GetString(reader, "DIVISION"),
-            GetString(reader, "COST_CENTER_CODE"),
-            costCenterName,
-            GetString(reader, "MOBILE"),
-            GetString(reader, "DESIGNATION"),
-            joinedDate,
-            CalculateExperience(joinedDate));
+    public async Task<ExitStaffFlowInfoDto?> GetExitStaffFlowInfoAsync(string staffId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = ExitFlowQuery;
+        command.CommandType = CommandType.Text;
+        AddParameter(command, "StaffId", DbType.String, staffId.Trim());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+
+        return new ExitStaffFlowInfoDto(GetString(reader, "EMP_NUMBER"), GetString(reader, "DIVISION_CODE"), GetString(reader, "COST_CENTER_CODE"), GetNullableDateTime(reader, "STATUS_EFFECTIVE_DATE"));
     }
 
     private static string BuildName(string firstName, string lastName) => string.Join(" ", new[] { firstName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
@@ -64,21 +60,13 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
     private static string CalculateExperience(DateTime? joinedDate)
     {
         if (joinedDate is null) return string.Empty;
-
         var start = joinedDate.Value.Date;
         var end = DateTime.Today;
         if (start > end) return "0 years 0 days";
-
         var years = end.Year - start.Year;
         var anniversary = start.AddYears(years);
-        if (anniversary > end)
-        {
-            years--;
-            anniversary = start.AddYears(years);
-        }
-
-        var days = (end - anniversary).Days;
-        return $"{years} years {days} days";
+        if (anniversary > end) { years--; anniversary = start.AddYears(years); }
+        return $"{years} years {(end - anniversary).Days} days";
     }
 
     private static string GetString(IDataRecord record, string columnName)
