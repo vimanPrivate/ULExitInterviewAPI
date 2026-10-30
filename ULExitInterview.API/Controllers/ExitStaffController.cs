@@ -26,4 +26,12 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         var staffInfo = await exitStaffService.GetStaffInfoAsync(request.StaffId, cancellationToken);
         return staffInfo is null ? NotFound(new { message = "Staff member not found." }) : Ok(staffInfo);
     }
+
+    [HttpPost("createExitStaffAForm")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult CreateExitStaffAForm([FromBody] CreateExitStaffFormRequest request)
+    {
+        return Ok(new { staffID = request.StaffID, message = "Exit staff form request created successfully." });
+    }
 }
