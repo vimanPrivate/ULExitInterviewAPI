@@ -19,7 +19,7 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
             MOBILE,
             DESIGNATION,
             INITIAL_JOINING_DATE
-        FROM HSENID.VW_HS_HR_EMPLOYEE_DETL_SLA_NEW
+        FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL
         WHERE EMP_NUMBER = :StaffId
           AND ROWNUM = 1
         """;
