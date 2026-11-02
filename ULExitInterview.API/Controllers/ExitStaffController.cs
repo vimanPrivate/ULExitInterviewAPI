@@ -37,10 +37,11 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
     }
 
     [HttpPost("getAssignedTemplates")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult GetAssignedTemplates([FromBody] CreateExitStaffFormRequest request)
+    [ProducesResponseType(typeof(AssignedTemplateResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AssignedTemplateResponseDto>> GetAssignedTemplates([FromBody] CreateExitStaffFormRequest request, CancellationToken cancellationToken)
     {
-        return Ok(new { staffID = request.StaffID });
+        var result = await exitStaffService.GetAssignedTemplatesAsync(request.StaffID, cancellationToken);
+        return result is null ? NotFound(new { message = "Staff member or assigned template was not found." }) : Ok(result);
     }
 }
