@@ -18,7 +18,7 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         return Ok(new { message = "Answers saved successfully." });
     }
 
-    [HttpPost("StaffInfo")]
+    [HttpPost("staffInfo")]
     [ProducesResponseType(typeof(StaffInfoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<StaffInfoDto>> StaffInfo([FromBody] StaffInfoRequest request, CancellationToken cancellationToken)
