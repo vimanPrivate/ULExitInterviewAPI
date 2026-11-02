@@ -81,12 +81,14 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT f.ID AS FlowId, t.ID AS TemplateId, t.Name AS TemplateName,
+            SELECT f.ID AS FlowId, f.Status_ID AS FlowStatusId, s.Status AS FlowStatus,
+                   t.ID AS TemplateId, t.Name AS TemplateName,
                    q.ID AS QuestionId, q.Question AS QuestionText, q.[Order] AS QuestionOrder,
                    qt.Code AS QuestionTypeCode, ta.Answer AS TypingAnswer,
                    c.ID AS ChoiceId, c.ChoiceName AS ChoiceText, c.[Order] AS ChoiceOrder,
                    CASE WHEN ca.ID IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS IsSelected
             FROM dbo.tblExitInterviewFlow f
+            INNER JOIN dbo.tblStatus s ON s.ID = f.Status_ID
             INNER JOIN dbo.tblTemplate t ON t.ID = f.Template_ID
             INNER JOIN dbo.tblQuestions q ON q.Template_ID = t.ID
             INNER JOIN dbo.tblQuestionTypes qt ON qt.ID = q.QuestionTypes_ID
@@ -106,11 +108,15 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
 
         int? templateId = null;
         string templateName = string.Empty;
+        int flowStatusId = 0;
+        string flowStatus = string.Empty;
         var questions = new Dictionary<int, QuestionBuilder>();
         while (await reader.ReadAsync(cancellationToken))
         {
             templateId ??= Convert.ToInt32(reader["TemplateId"]);
             templateName = Convert.ToString(reader["TemplateName"]) ?? string.Empty;
+            flowStatusId = Convert.ToInt32(reader["FlowStatusId"]);
+            flowStatus = Convert.ToString(reader["FlowStatus"]) ?? string.Empty;
             var questionId = Convert.ToInt32(reader["QuestionId"]);
             if (!questions.TryGetValue(questionId, out var question))
             {
@@ -139,6 +145,8 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         return new AssignedTemplateDto(
             templateId.Value,
             templateName,
+            flowStatusId,
+            flowStatus,
             questions.Values.OrderBy(x => x.Order)
                 .Select(x => new AssignedQuestionAnswerDto(x.QuestionId, x.QuestionText, x.Order, x.QuestionTypeCode, x.TypingAnswer, x.Choices.OrderBy(c => c.Order).ToList()))
                 .ToList());
