@@ -5,6 +5,9 @@ namespace ULExitInterview.Application.ExitStaff;
 public sealed class InsertAnswersRequest
 {
     [Range(1, int.MaxValue)]
+    public int FlowId { get; init; }
+
+    [Range(1, int.MaxValue)]
     public int TemplateId { get; init; }
 
     [Required]
