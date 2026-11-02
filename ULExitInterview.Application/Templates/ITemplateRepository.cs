@@ -5,7 +5,6 @@ public interface ITemplateRepository
     Task<IReadOnlyList<TemplateDto>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TemplateDto>> SearchAsync(int? templateId, string? templateName, CancellationToken cancellationToken = default);
     Task<int> CreateAsync(CreateTemplateRequest request, CancellationToken cancellationToken = default);
-    Task<int> EditAsync(EditTemplateRequest request, CancellationToken cancellationToken = default);
     Task AssignCostCentersAsync(AssignCostCentersRequest request, CancellationToken cancellationToken = default);
     Task UnassignCostCentersAsync(UnassignCostCentersRequest request, CancellationToken cancellationToken = default);
     Task DeleteTemplatesAsync(DeleteTemplatesRequest request, CancellationToken cancellationToken = default);
