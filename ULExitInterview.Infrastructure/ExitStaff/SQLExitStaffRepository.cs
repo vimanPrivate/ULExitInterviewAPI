@@ -15,12 +15,16 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         try
         {
             await ValidateFlowAndTemplateAsync(connection, transaction, request.FlowId, request.TemplateId, cancellationToken);
+            await ValidateStatusAsync(connection, transaction, request.Status, cancellationToken);
+
             foreach (var answer in request.Answers)
             {
                 var answerId = await InsertAnswerAsync(connection, transaction, request.FlowId, answer.QuestionId, cancellationToken);
                 if (!string.IsNullOrWhiteSpace(answer.Answer)) await InsertTypingAnswerAsync(connection, transaction, answerId, answer.Answer.Trim(), cancellationToken);
                 foreach (var choice in answer.Choices.DistinctBy(x => x.Id)) await InsertChoiceAnswerAsync(connection, transaction, answerId, choice.Id, cancellationToken);
             }
+
+            await UpdateFlowStatusAsync(connection, transaction, request.FlowId, request.Status, request.CreatedUser.Trim(), cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
         catch
@@ -174,6 +178,34 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         AddParameter(command, "@TemplateId", DbType.Int32, templateId);
         if (Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) != 1)
             throw new InvalidOperationException($"Exit interview flow '{flowId}' does not exist or is not assigned to template '{templateId}'.");
+    }
+
+    private static async Task ValidateStatusAsync(DbConnection connection, DbTransaction transaction, int statusId, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT COUNT(1) FROM dbo.tblStatus WHERE ID = @StatusId;";
+        AddParameter(command, "@StatusId", DbType.Int32, statusId);
+        if (Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) != 1)
+            throw new InvalidOperationException($"Status ID '{statusId}' does not exist.");
+    }
+
+    private static async Task UpdateFlowStatusAsync(DbConnection connection, DbTransaction transaction, int flowId, int statusId, string updatedUser, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            UPDATE dbo.tblExitInterviewFlow
+            SET Status_ID = @StatusId,
+                UpdatedDate = GETDATE(),
+                UpdatedUser = @UpdatedUser
+            WHERE ID = @FlowId;
+            """;
+        AddParameter(command, "@StatusId", DbType.Int32, statusId);
+        AddParameter(command, "@UpdatedUser", DbType.String, updatedUser);
+        AddParameter(command, "@FlowId", DbType.Int32, flowId);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            throw new InvalidOperationException($"Exit interview flow '{flowId}' could not be updated.");
     }
 
     private static async Task<int> GetAssignedTemplateIdAsync(DbConnection connection, DbTransaction transaction, string divisionCode, string costCenterCode, CancellationToken cancellationToken)
