@@ -108,6 +108,7 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
 
         int? templateId = null;
         string templateName = string.Empty;
+        int flowId = 0;
         int flowStatusId = 0;
         string flowStatus = string.Empty;
         var questions = new Dictionary<int, QuestionBuilder>();
@@ -115,6 +116,7 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         {
             templateId ??= Convert.ToInt32(reader["TemplateId"]);
             templateName = Convert.ToString(reader["TemplateName"]) ?? string.Empty;
+            flowId = Convert.ToInt32(reader["FlowId"]);
             flowStatusId = Convert.ToInt32(reader["FlowStatusId"]);
             flowStatus = Convert.ToString(reader["FlowStatus"]) ?? string.Empty;
             var questionId = Convert.ToInt32(reader["QuestionId"]);
@@ -145,6 +147,7 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         return new AssignedTemplateDto(
             templateId.Value,
             templateName,
+            flowId,
             flowStatusId,
             flowStatus,
             questions.Values.OrderBy(x => x.Order)
