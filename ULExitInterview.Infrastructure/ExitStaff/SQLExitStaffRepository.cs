@@ -59,6 +59,24 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         }
     }
 
+    public async Task MarkEmailSentAsync(int flowId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE dbo.tblExitInterviewFlow
+            SET IsEmailSent = 1,
+                EmailSentDate = GETDATE(),
+                EmailSentUser = @EmailSentUser
+            WHERE ID = @FlowId;
+            """;
+        AddParameter(command, "@FlowId", DbType.Int32, flowId);
+        AddParameter(command, "@EmailSentUser", DbType.String, "ITSystems@srilankan.com");
+        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (affectedRows != 1) throw new InvalidOperationException($"Exit interview flow '{flowId}' could not be marked as email sent.");
+    }
+
     private static async Task<int> GetAssignedTemplateIdAsync(DbConnection connection, DbTransaction transaction, string divisionCode, string costCenterCode, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
