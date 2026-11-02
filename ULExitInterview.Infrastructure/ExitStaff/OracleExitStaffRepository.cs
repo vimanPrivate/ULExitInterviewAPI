@@ -14,7 +14,7 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
         """;
 
     private const string ExitFlowQuery = """
-        SELECT EMP_NUMBER, DIVISION_CODE, COST_CENTER_CODE, STATUS_EFFECTIVE_DATE
+        SELECT EMP_NUMBER, DIVISION_CODE, COST_CENTER_CODE, STATUS_EFFECTIVE_DATE, EMAIL
         FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL
         WHERE EMP_NUMBER = :StaffId AND ROWNUM = 1
         """;
@@ -46,7 +46,12 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
 
-        return new ExitStaffFlowInfoDto(GetString(reader, "EMP_NUMBER"), GetString(reader, "DIVISION_CODE"), GetString(reader, "COST_CENTER_CODE"), GetNullableDateTime(reader, "STATUS_EFFECTIVE_DATE"));
+        return new ExitStaffFlowInfoDto(
+            GetString(reader, "EMP_NUMBER"),
+            GetString(reader, "DIVISION_CODE"),
+            GetString(reader, "COST_CENTER_CODE"),
+            GetNullableDateTime(reader, "STATUS_EFFECTIVE_DATE"),
+            GetString(reader, "EMAIL"));
     }
 
     private static string BuildName(string firstName, string lastName) => string.Join(" ", new[] { firstName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
