@@ -34,24 +34,31 @@ public sealed class TemplateController(ITemplateService templateService) : Contr
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult> CreateTemplate([FromBody] CreateTemplateRequest request, CancellationToken cancellationToken)
     {
-        if (!request.Status.Equals("DRAFT", StringComparison.OrdinalIgnoreCase) && !request.Status.Equals("ACTIVE", StringComparison.OrdinalIgnoreCase))
-            return BadRequest("status must be either DRAFT or ACTIVE.");
-
-        if (request.Questions.Select(x => x.SortOrder).Distinct().Count() != request.Questions.Count)
-            return BadRequest("Question sortOrder values must be unique.");
-
-        foreach (var question in request.Questions)
-        {
-            var supportsChoices = question.QuestionTypeCode.Equals("SINGLE_CHOICE", StringComparison.OrdinalIgnoreCase) || question.QuestionTypeCode.Equals("MULTIPLE_CHOICE", StringComparison.OrdinalIgnoreCase);
-
-            if (supportsChoices && question.Choices.Count == 0) return BadRequest($"Question '{question.QuestionText}' requires at least one choice.");
-            if (!supportsChoices && question.Choices.Count > 0) return BadRequest($"Question type '{question.QuestionTypeCode}' cannot contain choices.");
-            if (question.Choices.Select(x => x.SortOrder).Distinct().Count() != question.Choices.Count) return BadRequest($"Choice sortOrder values must be unique for question '{question.QuestionText}'.");
-        }
+        var validationResult = ValidateTemplateRequest(request.Status, request.Questions);
+        if (validationResult is not null) return validationResult;
 
         try
         {
             var templateId = await templateService.CreateAsync(request, cancellationToken);
+            return StatusCode(StatusCodes.Status201Created, new { templateId });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("editTemplate")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult> EditTemplate([FromBody] EditTemplateRequest request, CancellationToken cancellationToken)
+    {
+        var validationResult = ValidateTemplateRequest(request.Status, request.Questions);
+        if (validationResult is not null) return validationResult;
+
+        try
+        {
+            var templateId = await templateService.EditAsync(request, cancellationToken);
             return StatusCode(StatusCodes.Status201Created, new { templateId });
         }
         catch (InvalidOperationException ex)
@@ -110,5 +117,24 @@ public sealed class TemplateController(ITemplateService templateService) : Contr
         {
             return BadRequest(ex.Message);
         }
+    }
+
+    private BadRequestObjectResult? ValidateTemplateRequest(string status, IReadOnlyList<CreateTemplateQuestionRequest> questions)
+    {
+        if (!status.Equals("DRAFT", StringComparison.OrdinalIgnoreCase) && !status.Equals("ACTIVE", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("status must be either DRAFT or ACTIVE.");
+
+        if (questions.Select(x => x.SortOrder).Distinct().Count() != questions.Count)
+            return BadRequest("Question sortOrder values must be unique.");
+
+        foreach (var question in questions)
+        {
+            var supportsChoices = question.QuestionTypeCode.Equals("SINGLE_CHOICE", StringComparison.OrdinalIgnoreCase) || question.QuestionTypeCode.Equals("MULTIPLE_CHOICE", StringComparison.OrdinalIgnoreCase);
+            if (supportsChoices && question.Choices.Count == 0) return BadRequest($"Question '{question.QuestionText}' requires at least one choice.");
+            if (!supportsChoices && question.Choices.Count > 0) return BadRequest($"Question type '{question.QuestionTypeCode}' cannot contain choices.");
+            if (question.Choices.Select(x => x.SortOrder).Distinct().Count() != question.Choices.Count) return BadRequest($"Choice sortOrder values must be unique for question '{question.QuestionText}'.");
+        }
+
+        return null;
     }
 }
