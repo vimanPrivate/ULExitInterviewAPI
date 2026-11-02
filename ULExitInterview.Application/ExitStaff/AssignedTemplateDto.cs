@@ -11,6 +11,7 @@ public sealed record AssignedTemplateResponseDto(
     string Designation,
     DateTime? JoinedDate,
     string Experiance,
+    int FlowId,
     int FlowStatusId,
     string FlowStatus,
     AssignedTemplateDto Template);
@@ -18,6 +19,7 @@ public sealed record AssignedTemplateResponseDto(
 public sealed record AssignedTemplateDto(
     int TemplateId,
     string TemplateName,
+    int FlowId,
     int FlowStatusId,
     string FlowStatus,
     IReadOnlyList<AssignedQuestionAnswerDto> QandA);
