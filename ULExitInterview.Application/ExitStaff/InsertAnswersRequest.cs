@@ -14,9 +14,8 @@ public sealed class InsertAnswersRequest
     [StringLength(100)]
     public string CreatedUser { get; init; } = string.Empty;
 
-    [Required]
-    [RegularExpression("^(?i:draft|final)$", ErrorMessage = "Status must be either 'draft' or 'final'.")]
-    public string Status { get; init; } = string.Empty;
+    [Range(1, int.MaxValue)]
+    public int Status { get; init; }
 
     [Required]
     [MinLength(1)]
