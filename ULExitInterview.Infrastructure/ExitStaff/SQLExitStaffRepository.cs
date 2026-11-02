@@ -19,9 +19,9 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
 
             foreach (var answer in request.Answers)
             {
-                var answerId = await InsertAnswerAsync(connection, transaction, request.FlowId, answer.QuestionId, cancellationToken);
-                if (!string.IsNullOrWhiteSpace(answer.Answer)) await InsertTypingAnswerAsync(connection, transaction, answerId, answer.Answer.Trim(), cancellationToken);
-                foreach (var choice in answer.Choices.DistinctBy(x => x.Id)) await InsertChoiceAnswerAsync(connection, transaction, answerId, choice.Id, cancellationToken);
+                var answerId = await GetOrCreateAnswerAsync(connection, transaction, request.FlowId, answer.QuestionId, cancellationToken);
+                await UpsertTypingAnswerAsync(connection, transaction, answerId, answer.Answer, cancellationToken);
+                await ReplaceChoiceAnswersAsync(connection, transaction, answerId, answer.Choices, cancellationToken);
             }
 
             await UpdateFlowStatusAsync(connection, transaction, request.FlowId, request.Status, request.CreatedUser.Trim(), cancellationToken);
@@ -226,25 +226,55 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         return Convert.ToInt32(result);
     }
 
-    private static async Task<int> InsertAnswerAsync(DbConnection connection, DbTransaction transaction, int flowId, int questionId, CancellationToken cancellationToken)
+    private static async Task<int> GetOrCreateAnswerAsync(DbConnection connection, DbTransaction transaction, int flowId, int questionId, CancellationToken cancellationToken)
     {
-        const string query = "INSERT INTO dbo.tblAnswers (ExitInterviewFlow_ID, Questions_ID) OUTPUT INSERTED.ID VALUES (@FlowId, @QuestionId);";
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = query;
+        command.CommandText = """
+            SELECT TOP (1) ID
+            FROM dbo.tblAnswers
+            WHERE ExitInterviewFlow_ID = @FlowId AND Questions_ID = @QuestionId
+            ORDER BY ID;
+            """;
+        AddParameter(command, "@FlowId", DbType.Int32, flowId);
+        AddParameter(command, "@QuestionId", DbType.Int32, questionId);
+        var existingId = await command.ExecuteScalarAsync(cancellationToken);
+        if (existingId is not null && existingId != DBNull.Value) return Convert.ToInt32(existingId);
+
+        command.Parameters.Clear();
+        command.CommandText = "INSERT INTO dbo.tblAnswers (ExitInterviewFlow_ID, Questions_ID) OUTPUT INSERTED.ID VALUES (@FlowId, @QuestionId);";
         AddParameter(command, "@FlowId", DbType.Int32, flowId);
         AddParameter(command, "@QuestionId", DbType.Int32, questionId);
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
     }
 
-    private static async Task InsertTypingAnswerAsync(DbConnection connection, DbTransaction transaction, int answerId, string answer, CancellationToken cancellationToken)
+    private static async Task UpsertTypingAnswerAsync(DbConnection connection, DbTransaction transaction, int answerId, string? answer, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "INSERT INTO dbo.tblTypingAnswers (Answers_ID, Answer) VALUES (@AnswerId, @Answer);";
+        command.CommandText = """
+            IF EXISTS (SELECT 1 FROM dbo.tblTypingAnswers WHERE Answers_ID = @AnswerId)
+                UPDATE dbo.tblTypingAnswers SET Answer = @Answer WHERE Answers_ID = @AnswerId;
+            ELSE IF @Answer IS NOT NULL
+                INSERT INTO dbo.tblTypingAnswers (Answers_ID, Answer) VALUES (@AnswerId, @Answer);
+            """;
         AddParameter(command, "@AnswerId", DbType.Int32, answerId);
-        AddParameter(command, "@Answer", DbType.String, answer);
+        AddParameter(command, "@Answer", DbType.String, string.IsNullOrWhiteSpace(answer) ? null : answer.Trim());
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task ReplaceChoiceAnswersAsync(DbConnection connection, DbTransaction transaction, int answerId, IReadOnlyList<InsertAnswerChoiceRequest> choices, CancellationToken cancellationToken)
+    {
+        await using (var deleteCommand = connection.CreateCommand())
+        {
+            deleteCommand.Transaction = transaction;
+            deleteCommand.CommandText = "DELETE FROM dbo.tblChoicingAnswers WHERE Answers_ID = @AnswerId;";
+            AddParameter(deleteCommand, "@AnswerId", DbType.Int32, answerId);
+            await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        foreach (var choice in choices.DistinctBy(x => x.Id))
+            await InsertChoiceAnswerAsync(connection, transaction, answerId, choice.Id, cancellationToken);
     }
 
     private static async Task InsertChoiceAnswerAsync(DbConnection connection, DbTransaction transaction, int answerId, int choiceId, CancellationToken cancellationToken)
