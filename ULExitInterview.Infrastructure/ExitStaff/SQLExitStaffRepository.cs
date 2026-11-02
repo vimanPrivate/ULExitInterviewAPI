@@ -14,10 +14,10 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         try
         {
-            var isDraft = request.Status.Equals("draft", StringComparison.OrdinalIgnoreCase);
+            await ValidateFlowAndTemplateAsync(connection, transaction, request.FlowId, request.TemplateId, cancellationToken);
             foreach (var answer in request.Answers)
             {
-                var answerId = await InsertAnswerAsync(connection, transaction, request.TemplateId, answer.QuestionId, request.CreatedUser.Trim(), isDraft, cancellationToken);
+                var answerId = await InsertAnswerAsync(connection, transaction, request.FlowId, answer.QuestionId, cancellationToken);
                 if (!string.IsNullOrWhiteSpace(answer.Answer)) await InsertTypingAnswerAsync(connection, transaction, answerId, answer.Answer.Trim(), cancellationToken);
                 foreach (var choice in answer.Choices.DistinctBy(x => x.Id)) await InsertChoiceAnswerAsync(connection, transaction, answerId, choice.Id, cancellationToken);
             }
@@ -165,6 +165,17 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         public List<AssignedChoiceDto> Choices { get; } = [];
     }
 
+    private static async Task ValidateFlowAndTemplateAsync(DbConnection connection, DbTransaction transaction, int flowId, int templateId, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT COUNT(1) FROM dbo.tblExitInterviewFlow WHERE ID = @FlowId AND Template_ID = @TemplateId;";
+        AddParameter(command, "@FlowId", DbType.Int32, flowId);
+        AddParameter(command, "@TemplateId", DbType.Int32, templateId);
+        if (Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) != 1)
+            throw new InvalidOperationException($"Exit interview flow '{flowId}' does not exist or is not assigned to template '{templateId}'.");
+    }
+
     private static async Task<int> GetAssignedTemplateIdAsync(DbConnection connection, DbTransaction transaction, string divisionCode, string costCenterCode, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
@@ -183,16 +194,14 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         return Convert.ToInt32(result);
     }
 
-    private static async Task<int> InsertAnswerAsync(DbConnection connection, DbTransaction transaction, int templateId, int questionId, string answeredUser, bool isDraft, CancellationToken cancellationToken)
+    private static async Task<int> InsertAnswerAsync(DbConnection connection, DbTransaction transaction, int flowId, int questionId, CancellationToken cancellationToken)
     {
-        const string query = "INSERT INTO dbo.tblAnswers (Template_ID, Questions_ID, AnsweredUser, AnsweredDate, IsDraft) OUTPUT INSERTED.ID VALUES (@TemplateId, @QuestionId, @AnsweredUser, GETDATE(), @IsDraft);";
+        const string query = "INSERT INTO dbo.tblAnswers (ExitInterviewFlow_ID, Questions_ID) OUTPUT INSERTED.ID VALUES (@FlowId, @QuestionId);";
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = query;
-        AddParameter(command, "@TemplateId", DbType.Int32, templateId);
+        AddParameter(command, "@FlowId", DbType.Int32, flowId);
         AddParameter(command, "@QuestionId", DbType.Int32, questionId);
-        AddParameter(command, "@AnsweredUser", DbType.String, answeredUser);
-        AddParameter(command, "@IsDraft", DbType.Boolean, isDraft);
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
     }
 
