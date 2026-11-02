@@ -35,4 +35,12 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         var flowId = await exitStaffService.CreateExitStaffFormAsync(request.StaffID, cancellationToken);
         return Ok(new { id = flowId, staffID = request.StaffID, message = "Exit staff form created successfully." });
     }
+
+    [HttpPost("getAssignedTemplates")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult GetAssignedTemplates([FromBody] CreateExitStaffFormRequest request)
+    {
+        return Ok(new { staffID = request.StaffID });
+    }
 }
