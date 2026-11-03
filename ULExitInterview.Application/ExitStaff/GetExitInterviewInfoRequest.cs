@@ -1,4 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ULExitInterview.Application.ExitStaff;
 
@@ -14,7 +17,10 @@ public sealed class GetExitInterviewInfoRequest
     [Range(1, int.MaxValue)]
     public int? Status { get; init; }
 
+    [JsonConverter(typeof(NullableDateTimeEmptyStringConverter))]
     public DateTime? LastWorkingDateFrom { get; init; }
+
+    [JsonConverter(typeof(NullableDateTimeEmptyStringConverter))]
     public DateTime? LastWorkingDateTo { get; init; }
 
     [Range(1, int.MaxValue)]
@@ -64,3 +70,30 @@ public sealed record ExitInterviewStaffSearchDto(
     string CostCenter,
     string CostCenterCode,
     DateTime? EffectiveDate);
+
+public sealed class NullableDateTimeEmptyStringConverter : JsonConverter<DateTime?>
+{
+    public override DateTime? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null) return null;
+
+        if (reader.TokenType != JsonTokenType.String)
+            throw new JsonException("Date must be a string, empty string, or null.");
+
+        var value = reader.GetString();
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var date))
+            return date;
+
+        throw new JsonException($"'{value}' is not a valid date.");
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions options)
+    {
+        if (value.HasValue)
+            writer.WriteStringValue(value.Value);
+        else
+            writer.WriteNullValue();
+    }
+}
