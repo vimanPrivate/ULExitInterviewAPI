@@ -54,6 +54,49 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
             GetString(reader, "EMAIL"));
     }
 
+    public async Task<IReadOnlyList<ExitInterviewStaffSearchDto>> SearchExitInterviewStaffAsync(GetExitInterviewInfoRequest request, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandType = CommandType.Text;
+        command.CommandText = """
+            SELECT EMP_NUMBER, CALLING_NAME, DIVISION_CODE, DIVISION, COST_CENTER_CODE, COST_CENTER_NAME, LAST_EFFECTIVE_DATE
+            FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL
+            WHERE (:StaffName IS NULL OR UPPER(CALLING_NAME) LIKE '%' || UPPER(:StaffName) || '%')
+              AND (:StaffNo IS NULL OR UPPER(EMP_NUMBER) LIKE '%' || UPPER(:StaffNo) || '%')
+              AND (:CostCenterName IS NULL OR UPPER(COST_CENTER_NAME) LIKE '%' || UPPER(:CostCenterName) || '%')
+              AND (:CostCenterCode IS NULL OR UPPER(COST_CENTER_CODE) = UPPER(:CostCenterCode))
+              AND (:DivisionName IS NULL OR UPPER(DIVISION) LIKE '%' || UPPER(:DivisionName) || '%')
+              AND (:DivisionCode IS NULL OR UPPER(DIVISION_CODE) = UPPER(:DivisionCode))
+              AND (:DateFrom IS NULL OR LAST_EFFECTIVE_DATE >= :DateFrom)
+              AND (:DateTo IS NULL OR LAST_EFFECTIVE_DATE < :DateTo)
+            """;
+        AddNullableStringParameter(command, "StaffName", request.StaffName);
+        AddNullableStringParameter(command, "StaffNo", request.StaffNo);
+        AddNullableStringParameter(command, "CostCenterName", request.CostCenterName);
+        AddNullableStringParameter(command, "CostCenterCode", request.CostCenterCode);
+        AddNullableStringParameter(command, "DivisionName", request.DivisionName);
+        AddNullableStringParameter(command, "DivisionCode", request.DivisionCode);
+        AddNullableDateParameter(command, "DateFrom", request.LastWorkingDateFrom?.Date);
+        AddNullableDateParameter(command, "DateTo", request.LastWorkingDateTo?.Date.AddDays(1));
+
+        var result = new List<ExitInterviewStaffSearchDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add(new ExitInterviewStaffSearchDto(
+                GetString(reader, "EMP_NUMBER"),
+                GetString(reader, "CALLING_NAME"),
+                GetString(reader, "DIVISION"),
+                GetString(reader, "DIVISION_CODE"),
+                RemoveManagerPrefix(GetString(reader, "COST_CENTER_NAME")),
+                GetString(reader, "COST_CENTER_CODE"),
+                GetNullableDateTime(reader, "LAST_EFFECTIVE_DATE")));
+        }
+        return result;
+    }
+
     private static string BuildName(string firstName, string lastName) => string.Join(" ", new[] { firstName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
     private static string RemoveManagerPrefix(string costCenterName)
@@ -92,6 +135,24 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
         parameter.ParameterName = name;
         parameter.DbType = type;
         parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
+    private static void AddNullableStringParameter(DbCommand command, string name, string? value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = DbType.String;
+        parameter.Value = string.IsNullOrWhiteSpace(value) ? DBNull.Value : value.Trim();
+        command.Parameters.Add(parameter);
+    }
+
+    private static void AddNullableDateParameter(DbCommand command, string name, DateTime? value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = DbType.DateTime;
+        parameter.Value = value.HasValue ? value.Value : DBNull.Value;
         command.Parameters.Add(parameter);
     }
 }
