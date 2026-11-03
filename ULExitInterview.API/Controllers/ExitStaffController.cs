@@ -36,6 +36,22 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         return Ok(new { id = flowId, staffID = request.StaffID, message = "Exit staff form created successfully." });
     }
 
+    [HttpPost("setBeginStatus")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SetBeginStatus([FromBody] SetBeginStatusRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await exitStaffService.SetBeginStatusAsync(request.FlowId, cancellationToken);
+            return Ok(new { flowId = request.FlowId, status = 2, message = "Exit interview status updated successfully." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
     [HttpPost("getAssignedTemplates")]
     [ProducesResponseType(typeof(AssignedTemplateResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
