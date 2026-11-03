@@ -67,14 +67,16 @@ public sealed class ExitStaffService(
             .Select(x => new { Flow = x, Staff = staffByNumber[x.StaffNo] })
             .ToList();
 
+        if (request.Status.HasValue)
+            matched = matched.Where(x => x.Flow.Status == request.Status.Value).ToList();
+
+        // Summary counts must be calculated from the final filtered result set,
+        // before pagination is applied.
         var notStarted = matched.Count(x => x.Flow.Status == 1);
         var drafted = matched.Count(x => x.Flow.Status == 3);
         var submitted = matched.Count(x => x.Flow.Status == 4);
         var completed = matched.Count(x => x.Flow.Status == 5);
         var overdue = matched.Count(x => x.Staff.EffectiveDate.HasValue && DateTime.Today > x.Staff.EffectiveDate.Value.Date);
-
-        if (request.Status.HasValue)
-            matched = matched.Where(x => x.Flow.Status == request.Status.Value).ToList();
 
         var ordered = matched.OrderByDescending(x => x.Staff.EffectiveDate).ThenByDescending(x => x.Flow.FlowId).ToList();
         var totalRecords = ordered.Count;
