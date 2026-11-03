@@ -48,6 +48,8 @@ public sealed class ExitStaffService(
             staff.Mobile,
             staff.Designation,
             staff.JoinedDate,
+            staff.Grade,
+            staff.LastEffectiveDate,
             staff.Experiance,
             template.FlowId,
             template.FlowStatusId,
