@@ -44,4 +44,20 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         var result = await exitStaffService.GetAssignedTemplatesAsync(request.StaffID, cancellationToken);
         return result is null ? NotFound(new { message = "Staff member or assigned template was not found." }) : Ok(result);
     }
+
+    [HttpPost("getExitInterviewInfo")]
+    [ProducesResponseType(typeof(ExitInterviewInfoResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ExitInterviewInfoResponseDto>> GetExitInterviewInfo([FromBody] GetExitInterviewInfoRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await exitStaffService.GetExitInterviewInfoAsync(request, cancellationToken);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
 }
