@@ -14,7 +14,7 @@ public sealed class GetExitInterviewInfoRequest
     public string? DivisionName { get; init; }
     public string? DivisionCode { get; init; }
 
-    [Range(1, int.MaxValue)]
+    [Range(0, int.MaxValue)]
     public int? Status { get; init; }
 
     [JsonConverter(typeof(NullableDateTimeEmptyStringConverter))]
