@@ -7,7 +7,7 @@ namespace ULExitInterview.Infrastructure.ExitStaff;
 
 internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connectionFactory) : IStaffInfoRepository
 {
-    private const string Query = "SELECT EMP_NUMBER, FIRST_NAME, LAST_NAME, DIVISION_CODE, DIVISION, COST_CENTER_CODE, COST_CENTER_NAME, MOBILE, DESIGNATION, INITIAL_JOINING_DATE FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL WHERE EMP_NUMBER = :StaffId AND ROWNUM = 1";
+    private const string Query = "SELECT EMP_NUMBER, FIRST_NAME, LAST_NAME, DIVISION_CODE, DIVISION, COST_CENTER_CODE, COST_CENTER_NAME, MOBILE, DESIGNATION, INITIAL_JOINING_DATE, SALARY_GRADE, LAST_EFFECTIVE_DATE FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL WHERE EMP_NUMBER = :StaffId AND ROWNUM = 1";
     private const string ExitFlowQuery = "SELECT EMP_NUMBER, DIVISION_CODE, COST_CENTER_CODE, STATUS_EFFECTIVE_DATE, EMAIL FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL WHERE EMP_NUMBER = :StaffId AND ROWNUM = 1";
 
     public async Task<StaffInfoDto?> GetStaffInfoAsync(string staffId, CancellationToken cancellationToken = default)
@@ -17,7 +17,9 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
         AddParameter(command, "StaffId", DbType.String, staffId.Trim());
         await using var reader = await command.ExecuteReaderAsync(cancellationToken); if (!await reader.ReadAsync(cancellationToken)) return null;
         var joinedDate = GetNullableDateTime(reader, "INITIAL_JOINING_DATE");
-        return new StaffInfoDto(GetString(reader, "EMP_NUMBER"), BuildName(GetString(reader, "FIRST_NAME"), GetString(reader, "LAST_NAME")), GetString(reader, "DIVISION_CODE"), GetString(reader, "DIVISION"), GetString(reader, "COST_CENTER_CODE"), RemoveManagerPrefix(GetString(reader, "COST_CENTER_NAME")), GetString(reader, "MOBILE"), GetString(reader, "DESIGNATION"), joinedDate, CalculateExperience(joinedDate));
+        var grade = GetString(reader, "SALARY_GRADE");
+        var lastEffectiveDate = GetNullableDateTime(reader, "LAST_EFFECTIVE_DATE");
+        return new StaffInfoDto(GetString(reader, "EMP_NUMBER"), BuildName(GetString(reader, "FIRST_NAME"), GetString(reader, "LAST_NAME")), GetString(reader, "DIVISION_CODE"), GetString(reader, "DIVISION"), GetString(reader, "COST_CENTER_CODE"), RemoveManagerPrefix(GetString(reader, "COST_CENTER_NAME")), GetString(reader, "MOBILE"), GetString(reader, "DESIGNATION"), joinedDate, grade, lastEffectiveDate, CalculateExperience(joinedDate));
     }
 
     public async Task<ExitStaffFlowInfoDto?> GetExitStaffFlowInfoAsync(string staffId, CancellationToken cancellationToken = default)
