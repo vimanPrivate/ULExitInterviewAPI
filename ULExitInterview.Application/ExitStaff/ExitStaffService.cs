@@ -67,7 +67,8 @@ public sealed class ExitStaffService(
             .Select(x => new { Flow = x, Staff = staffByNumber[x.StaffNo] })
             .ToList();
 
-        if (request.Status.HasValue)
+        // Status 0 means all statuses / no status filter.
+        if (request.Status.HasValue && request.Status.Value > 0)
             matched = matched.Where(x => x.Flow.Status == request.Status.Value).ToList();
 
         // Summary counts must be calculated from the final filtered result set,
