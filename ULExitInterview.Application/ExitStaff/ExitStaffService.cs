@@ -51,4 +51,60 @@ public sealed class ExitStaffService(
             template.FlowStatus,
             template);
     }
+
+    public async Task<ExitInterviewInfoResponseDto> GetExitInterviewInfoAsync(GetExitInterviewInfoRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.LastWorkingDateFrom.HasValue && request.LastWorkingDateTo.HasValue && request.LastWorkingDateFrom.Value.Date > request.LastWorkingDateTo.Value.Date)
+            throw new InvalidOperationException("lastWorkingDateFrom cannot be greater than lastWorkingDateTo.");
+
+        var staff = await staffInfoRepository.SearchExitInterviewStaffAsync(request, cancellationToken);
+        var flows = await exitStaffRepository.GetExitInterviewFlowsAsync(cancellationToken);
+        var staffByNumber = staff.GroupBy(x => x.StaffNo, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+
+        var matched = flows
+            .Where(x => staffByNumber.ContainsKey(x.StaffNo))
+            .Select(x => new { Flow = x, Staff = staffByNumber[x.StaffNo] })
+            .ToList();
+
+        var notStarted = matched.Count(x => x.Flow.Status == 1);
+        var drafted = matched.Count(x => x.Flow.Status == 3);
+        var submitted = matched.Count(x => x.Flow.Status == 4);
+        var completed = matched.Count(x => x.Flow.Status == 5);
+        var overdue = matched.Count(x => x.Staff.EffectiveDate.HasValue && DateTime.Today > x.Staff.EffectiveDate.Value.Date);
+
+        if (request.Status.HasValue)
+            matched = matched.Where(x => x.Flow.Status == request.Status.Value).ToList();
+
+        var ordered = matched.OrderByDescending(x => x.Staff.EffectiveDate).ThenByDescending(x => x.Flow.FlowId).ToList();
+        var totalRecords = ordered.Count;
+        var totalPages = totalRecords == 0 ? 0 : (int)Math.Ceiling(totalRecords / (double)request.PageSize);
+        var info = ordered.Skip((request.PageNo - 1) * request.PageSize).Take(request.PageSize)
+            .Select(x => new ExitInterviewInfoItemDto(
+                x.Staff.StaffNo,
+                x.Staff.EmpName,
+                x.Flow.FlowId,
+                x.Flow.TemplateId,
+                x.Staff.Division,
+                x.Staff.DivisionCode,
+                x.Staff.CostCenter,
+                x.Staff.CostCenterCode,
+                x.Staff.EffectiveDate,
+                x.Flow.Status))
+            .ToList();
+
+        return new ExitInterviewInfoResponseDto(
+            notStarted,
+            drafted,
+            submitted,
+            completed,
+            overdue,
+            totalRecords,
+            request.PageNo,
+            request.PageSize,
+            totalPages,
+            request.PageNo > 1 && totalRecords > 0,
+            request.PageNo < totalPages,
+            info);
+    }
 }
