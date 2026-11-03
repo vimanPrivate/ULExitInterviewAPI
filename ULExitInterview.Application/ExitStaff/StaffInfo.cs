@@ -19,4 +19,6 @@ public sealed record StaffInfoDto(
     string Mobile,
     string Designation,
     DateTime? JoinedDate,
+    string Grade,
+    DateTime? LastEffectiveDate,
     string Experiance);
