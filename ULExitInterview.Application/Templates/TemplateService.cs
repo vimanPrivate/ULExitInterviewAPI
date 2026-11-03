@@ -16,6 +16,9 @@ public sealed class TemplateService(ITemplateRepository templateRepository) : IT
         var existing = await templateRepository.SearchAsync(request.TemplateId, null, cancellationToken);
         if (existing.Count == 0) throw new InvalidOperationException($"Active template ID '{request.TemplateId}' does not exist.");
 
+        var originalTemplate = existing[0];
+        var previousAssignments = originalTemplate.AssignedCostCenters.ToList();
+
         var createRequest = new CreateTemplateRequest
         {
             Name = request.Name,
@@ -26,6 +29,32 @@ public sealed class TemplateService(ITemplateRepository templateRepository) : IT
         };
 
         var newTemplateId = await templateRepository.CreateAsync(createRequest, cancellationToken);
+
+        if (previousAssignments.Count > 0)
+        {
+            await templateRepository.UnassignCostCentersAsync(new UnassignCostCentersRequest
+            {
+                TemplateId = request.TemplateId,
+                CreatedUser = request.CreatedUser,
+                CostCenters = previousAssignments
+                    .Select(x => new UnassignCostCenterRequest { CostCenter = x.Code })
+                    .ToList()
+            }, cancellationToken);
+
+            await templateRepository.AssignCostCentersAsync(new AssignCostCentersRequest
+            {
+                TemplateId = newTemplateId,
+                CreatedUser = request.CreatedUser,
+                CostCenters = previousAssignments
+                    .Select(x => new AssignCostCenterRequest
+                    {
+                        DivisionCode = x.Division,
+                        CostCenterCode = x.Code
+                    })
+                    .ToList()
+            }, cancellationToken);
+        }
+
         await templateRepository.DeleteTemplatesAsync(new DeleteTemplatesRequest
         {
             CreatedUser = request.CreatedUser,
