@@ -6,4 +6,5 @@ public interface IExitStaffService
     Task<StaffInfoDto?> GetStaffInfoAsync(string staffId, CancellationToken cancellationToken = default);
     Task<int> CreateExitStaffFormAsync(string staffId, CancellationToken cancellationToken = default);
     Task<AssignedTemplateResponseDto?> GetAssignedTemplatesAsync(string staffId, CancellationToken cancellationToken = default);
+    Task<ExitInterviewInfoResponseDto> GetExitInterviewInfoAsync(GetExitInterviewInfoRequest request, CancellationToken cancellationToken = default);
 }
