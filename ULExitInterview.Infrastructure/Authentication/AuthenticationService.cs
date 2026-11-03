@@ -79,12 +79,13 @@ internal sealed class AuthenticationService(
             // AD credentials are valid, but AppSec has not authorized this user for the application.
             if (roles.Count == 0)
             {
-                return new LoginResult(2, null, staffNo, name, email, contactNo, designation, department, []);
+                var token = jwtTokenService.GenerateToken(staffNo, email, designation, department, []);
+                return new LoginResult(2, token, staffNo, name, email, contactNo, designation, department, []);
             }
 
-            var token = jwtTokenService.GenerateToken(staffNo, email, designation, department, roles);
+            var tokenWithRoles = jwtTokenService.GenerateToken(staffNo, email, designation, department, roles);
 
-            return new LoginResult(1, token, staffNo, name, email, contactNo, designation, department, roles);
+            return new LoginResult(1, tokenWithRoles, staffNo, name, email, contactNo, designation, department, roles);
         }
         catch (JsonException exception)
         {
