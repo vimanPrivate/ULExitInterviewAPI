@@ -60,6 +60,17 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         if (await command.ExecuteNonQueryAsync(cancellationToken) != 1) throw new InvalidOperationException($"Exit interview flow '{flowId}' could not be marked as email sent.");
     }
 
+    public async Task SetBeginStatusAsync(int flowId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE dbo.tblExitInterviewFlow SET Status_ID = 2, UpdatedDate = GETDATE() WHERE ID = @FlowId;";
+        AddParameter(command, "@FlowId", DbType.Int32, flowId);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            throw new InvalidOperationException($"Exit interview flow '{flowId}' does not exist or could not be updated.");
+    }
+
     public async Task<IReadOnlyList<ExitInterviewFlowSummaryDto>> GetExitInterviewFlowsAsync(CancellationToken cancellationToken = default)
     {
         var result = new List<ExitInterviewFlowSummaryDto>();
