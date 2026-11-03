@@ -10,6 +10,8 @@ public sealed record AssignedTemplateResponseDto(
     string Mobile,
     string Designation,
     DateTime? JoinedDate,
+    string Grade,
+    DateTime? LastEffectiveDate,
     string Experiance,
     int FlowId,
     int FlowStatusId,
