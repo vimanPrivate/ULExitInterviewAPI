@@ -45,12 +45,12 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
         if (request.LastWorkingDateFrom.HasValue) { conditions.Add("LAST_EFFECTIVE_DATE >= :DateFrom"); AddParameter(command, "DateFrom", DbType.DateTime, request.LastWorkingDateFrom.Value.Date); }
         if (request.LastWorkingDateTo.HasValue) { conditions.Add("LAST_EFFECTIVE_DATE < :DateTo"); AddParameter(command, "DateTo", DbType.DateTime, request.LastWorkingDateTo.Value.Date.AddDays(1)); }
         var where = conditions.Count == 0 ? string.Empty : " WHERE " + string.Join(" AND ", conditions);
-        command.CommandText = $"SELECT EMP_NUMBER, CALLING_NAME, DIVISION_CODE, DIVISION, COST_CENTER_CODE, COST_CENTER_NAME, LAST_EFFECTIVE_DATE FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL{where}";
+        command.CommandText = $"SELECT EMP_NUMBER, CALLING_NAME, DIVISION_CODE, DIVISION, COST_CENTER_CODE, COST_CENTER_NAME, LAST_EFFECTIVE_DATE, SALARY_GRADE FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL{where}";
 
         var result = new List<ExitInterviewStaffSearchDto>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-            result.Add(new ExitInterviewStaffSearchDto(GetString(reader, "EMP_NUMBER"), GetString(reader, "CALLING_NAME"), GetString(reader, "DIVISION"), GetString(reader, "DIVISION_CODE"), RemoveManagerPrefix(GetString(reader, "COST_CENTER_NAME")), GetString(reader, "COST_CENTER_CODE"), GetNullableDateTime(reader, "LAST_EFFECTIVE_DATE")));
+            result.Add(new ExitInterviewStaffSearchDto(GetString(reader, "EMP_NUMBER"), GetString(reader, "CALLING_NAME"), GetString(reader, "SALARY_GRADE"), GetString(reader, "DIVISION"), GetString(reader, "DIVISION_CODE"), RemoveManagerPrefix(GetString(reader, "COST_CENTER_NAME")), GetString(reader, "COST_CENTER_CODE"), GetNullableDateTime(reader, "LAST_EFFECTIVE_DATE")));
         return result;
     }
 
