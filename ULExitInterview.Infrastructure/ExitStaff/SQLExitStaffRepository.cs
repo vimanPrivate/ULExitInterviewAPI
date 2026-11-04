@@ -91,7 +91,7 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT f.ID AS FlowId, f.Status_ID AS FlowStatusId, s.Status AS FlowStatus, t.ID AS TemplateId, t.Name AS TemplateName,
-                   q.ID AS QuestionId, q.Question AS QuestionText, q.[Order] AS QuestionOrder, qt.Code AS QuestionTypeCode,
+                   q.ID AS QuestionId, q.Question AS QuestionText, q.[Order] AS QuestionOrder, q.IsRequired AS IsRequired, qt.Code AS QuestionTypeCode,
                    ta.Answer AS TypingAnswer, c.ID AS ChoiceId, c.ChoiceName AS ChoiceText, c.[Order] AS ChoiceOrder,
                    CASE WHEN ca.ID IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS IsSelected
             FROM dbo.tblExitInterviewFlow f
@@ -117,7 +117,7 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
             var questionId = Convert.ToInt32(reader["QuestionId"]);
             if (!questions.TryGetValue(questionId, out var question))
             {
-                question = new QuestionBuilder(questionId, Convert.ToString(reader["QuestionText"]) ?? string.Empty, Convert.ToInt32(reader["QuestionOrder"]), Convert.ToString(reader["QuestionTypeCode"]) ?? string.Empty, reader["TypingAnswer"] == DBNull.Value ? null : Convert.ToString(reader["TypingAnswer"]));
+                question = new QuestionBuilder(questionId, Convert.ToString(reader["QuestionText"]) ?? string.Empty, Convert.ToInt32(reader["QuestionOrder"]), Convert.ToBoolean(reader["IsRequired"]), Convert.ToString(reader["QuestionTypeCode"]) ?? string.Empty, reader["TypingAnswer"] == DBNull.Value ? null : Convert.ToString(reader["TypingAnswer"]));
                 questions.Add(questionId, question);
             }
             if (reader["ChoiceId"] != DBNull.Value)
@@ -127,12 +127,12 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
             }
         }
         if (templateId is null) return null;
-        return new AssignedTemplateDto(templateId.Value, templateName, flowId, flowStatusId, flowStatus, questions.Values.OrderBy(x => x.Order).Select(x => new AssignedQuestionAnswerDto(x.QuestionId, x.QuestionText, x.Order, x.QuestionTypeCode, x.TypingAnswer, x.Choices.OrderBy(c => c.Order).ToList())).ToList());
+        return new AssignedTemplateDto(templateId.Value, templateName, flowId, flowStatusId, flowStatus, questions.Values.OrderBy(x => x.Order).Select(x => new AssignedQuestionAnswerDto(x.QuestionId, x.QuestionText, x.Order, x.IsRequired, x.QuestionTypeCode, x.TypingAnswer, x.Choices.OrderBy(c => c.Order).ToList())).ToList());
     }
 
-    private sealed class QuestionBuilder(int questionId, string questionText, int order, string questionTypeCode, string? typingAnswer)
+    private sealed class QuestionBuilder(int questionId, string questionText, int order, bool isRequired, string questionTypeCode, string? typingAnswer)
     {
-        public int QuestionId { get; } = questionId; public string QuestionText { get; } = questionText; public int Order { get; } = order;
+        public int QuestionId { get; } = questionId; public string QuestionText { get; } = questionText; public int Order { get; } = order; public bool IsRequired { get; } = isRequired;
         public string QuestionTypeCode { get; } = questionTypeCode; public string? TypingAnswer { get; } = typingAnswer; public List<AssignedChoiceDto> Choices { get; } = [];
     }
 
