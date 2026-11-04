@@ -30,6 +30,7 @@ public sealed record AssignedQuestionAnswerDto(
     int QuestionId,
     string QuestionText,
     int Order,
+    bool IsRequired,
     string QuestionTypeCode,
     string? TypingAnswer,
     IReadOnlyList<AssignedChoiceDto> Choices);
