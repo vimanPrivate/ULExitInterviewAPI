@@ -47,6 +47,7 @@ public sealed record ExitInterviewInfoResponseDto(
 public sealed record ExitInterviewInfoItemDto(
     string StaffNo,
     string EmpName,
+    string Grade,
     int FlowId,
     int TemplateId,
     string Division,
@@ -65,6 +66,7 @@ public sealed record ExitInterviewFlowSummaryDto(
 public sealed record ExitInterviewStaffSearchDto(
     string StaffNo,
     string EmpName,
+    string Grade,
     string Division,
     string DivisionCode,
     string CostCenter,

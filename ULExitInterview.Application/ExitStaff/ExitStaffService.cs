@@ -91,6 +91,7 @@ public sealed class ExitStaffService(
             .Select(x => new ExitInterviewInfoItemDto(
                 x.Staff.StaffNo,
                 x.Staff.EmpName,
+                x.Staff.Grade,
                 x.Flow.FlowId,
                 x.Flow.TemplateId,
                 x.Staff.Division,
