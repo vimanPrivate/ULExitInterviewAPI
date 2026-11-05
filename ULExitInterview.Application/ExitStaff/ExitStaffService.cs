@@ -8,6 +8,9 @@ public sealed class ExitStaffService(
     public Task InsertAnswersAsync(InsertAnswersRequest request, CancellationToken cancellationToken = default)
         => exitStaffRepository.InsertAnswersAsync(request, cancellationToken);
 
+    public Task InsertAnswersOnBehalfOfStaffAsync(InsertAnswersRequest request, ExitInterviewAttachment? attachment, CancellationToken cancellationToken = default)
+        => exitStaffRepository.InsertAnswersOnBehalfOfStaffAsync(request, attachment, cancellationToken);
+
     public Task<StaffInfoDto?> GetStaffInfoAsync(string staffId, CancellationToken cancellationToken = default)
         => staffInfoRepository.GetStaffInfoAsync(staffId, cancellationToken);
 
