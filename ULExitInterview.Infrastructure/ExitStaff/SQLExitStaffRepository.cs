@@ -71,6 +71,17 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
             throw new InvalidOperationException($"Exit interview flow '{flowId}' does not exist or could not be updated.");
     }
 
+    public async Task<bool> SetFinalRemarksAsync(int flowId, string remarks, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE dbo.tblExitInterviewFlow SET HRRemark = @Remarks, Status_ID = 5, UpdatedDate = SYSDATETIME() WHERE ID = @FlowId;";
+        AddParameter(command, "@FlowId", DbType.Int32, flowId);
+        AddParameter(command, "@Remarks", DbType.AnsiString, remarks);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
     public async Task<IReadOnlyList<ExitInterviewFlowSummaryDto>> GetExitInterviewFlowsAsync(CancellationToken cancellationToken = default)
     {
         var result = new List<ExitInterviewFlowSummaryDto>();
