@@ -29,6 +29,9 @@ public sealed class ExitStaffService(
     public Task SetBeginStatusAsync(int flowId, CancellationToken cancellationToken = default)
         => exitStaffRepository.SetBeginStatusAsync(flowId, cancellationToken);
 
+    public Task<bool> SetFinalRemarksAsync(int flowId, string remarks, CancellationToken cancellationToken = default)
+        => exitStaffRepository.SetFinalRemarksAsync(flowId, remarks, cancellationToken);
+
     public async Task<AssignedTemplateResponseDto?> GetAssignedTemplatesAsync(string staffId, CancellationToken cancellationToken = default)
     {
         var normalizedStaffId = staffId.Trim();
