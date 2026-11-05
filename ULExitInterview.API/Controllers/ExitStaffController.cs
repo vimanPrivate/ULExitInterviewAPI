@@ -52,6 +52,18 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         }
     }
 
+    [HttpPost("setFinalRemarks")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetFinalRemarks([FromBody] SetFinalRemarksRequest request, CancellationToken cancellationToken)
+    {
+        var updated = await exitStaffService.SetFinalRemarksAsync(request.FlowId, request.Remarks.Trim(), cancellationToken);
+        return updated
+            ? Ok(new { flowId = request.FlowId, status = 5, message = "Final remarks saved successfully." })
+            : NotFound(new { message = "Exit interview flow not found." });
+    }
+
     [HttpPost("getAssignedTemplates")]
     [ProducesResponseType(typeof(AssignedTemplateResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
