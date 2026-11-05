@@ -9,6 +9,7 @@ public sealed class InsertAnswersOnBehalfOfStaffForm
     [Range(1, int.MaxValue)] public int TemplateId { get; init; }
     [Required, StringLength(100)] public string CreatedUser { get; init; } = string.Empty;
     [Range(1, int.MaxValue)] public int Status { get; init; }
+    [StringLength(100)] public string? Remarks { get; init; }
     [Required, MinLength(1)] public IReadOnlyList<InsertAnswerItemRequest> Answers { get; init; } = [];
     public AttachmentData? Attachment { get; init; }
 }
