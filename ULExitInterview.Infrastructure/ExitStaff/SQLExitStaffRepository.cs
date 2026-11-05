@@ -28,6 +28,42 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
     }
 
+    public async Task InsertAnswersOnBehalfOfStaffAsync(InsertAnswersRequest request, ExitInterviewAttachment? attachment, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await ValidateFlowAndTemplateAsync(connection, transaction, request.FlowId, request.TemplateId, cancellationToken);
+            await ValidateStatusAsync(connection, transaction, request.Status, cancellationToken);
+            foreach (var answer in request.Answers)
+            {
+                var answerId = await GetOrCreateAnswerAsync(connection, transaction, request.FlowId, answer.QuestionId, cancellationToken);
+                await UpsertTypingAnswerAsync(connection, transaction, answerId, answer.Answer, cancellationToken);
+                await ReplaceChoiceAnswersAsync(connection, transaction, answerId, answer.Choices, cancellationToken);
+            }
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = attachment is null
+                ? "UPDATE dbo.tblExitInterviewFlow SET Status_ID = @StatusId, UpdatedDate = SYSDATETIME(), UpdatedUser = @User, OnBehalfOfCompletedUser = @User WHERE ID = @FlowId;"
+                : "UPDATE dbo.tblExitInterviewFlow SET Status_ID = @StatusId, UpdatedDate = SYSDATETIME(), UpdatedUser = @User, OnBehalfOfCompletedUser = @User, Attachment = @Attachment, AttachmentFileName = @FileName, AttachmentContentType = @ContentType WHERE ID = @FlowId;";
+            AddParameter(command, "@FlowId", DbType.Int32, request.FlowId);
+            AddParameter(command, "@StatusId", DbType.Int32, request.Status);
+            AddParameter(command, "@User", DbType.AnsiString, request.CreatedUser.Trim());
+            if (attachment is not null)
+            {
+                AddParameter(command, "@Attachment", DbType.Binary, attachment.Content);
+                AddParameter(command, "@FileName", DbType.String, attachment.FileName);
+                AddParameter(command, "@ContentType", DbType.String, attachment.ContentType);
+            }
+            if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+                throw new InvalidOperationException($"Exit interview flow '{request.FlowId}' could not be updated.");
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+    }
+
     public async Task<int> CreateExitStaffFormAsync(ExitStaffFlowInfoDto staffInfo, CancellationToken cancellationToken = default)
     {
         await using var connection = connectionFactory.CreateConnection();
