@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Json;
 using ULExitInterview.API.Models;
 using ULExitInterview.Application.ExitStaff;
 
@@ -21,36 +20,30 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
     }
 
     [HttpPost("insertAnswersOnBehalfOfStaff")]
-    [Consumes("multipart/form-data")]
-    [RequestSizeLimit(6 * 1024 * 1024)]
+    [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
-    public async Task<IActionResult> InsertAnswersOnBehalfOfStaff([FromForm] InsertAnswersOnBehalfOfStaffForm form, CancellationToken cancellationToken)
+    public async Task<IActionResult> InsertAnswersOnBehalfOfStaff([FromBody] InsertAnswersOnBehalfOfStaffForm form, CancellationToken cancellationToken)
     {
-        IReadOnlyList<InsertAnswerItemRequest>? answers;
-        try { answers = JsonSerializer.Deserialize<List<InsertAnswerItemRequest>>(form.Answers, new JsonSerializerOptions(JsonSerializerDefaults.Web)); }
-        catch (JsonException) { return BadRequest(new { message = "Answers must be a valid JSON array." }); }
-        if (answers is null || answers.Count == 0 || answers.Any(x => x.QuestionId <= 0 || x.Choices is null || x.Choices.Any(y => y.Id <= 0)))
-            return BadRequest(new { message = "At least one valid answer is required." });
         if (string.IsNullOrWhiteSpace(form.CreatedUser)) return BadRequest(new { message = "CreatedUser is required." });
+        if (form.Answers is null || form.Answers.Count == 0 || form.Answers.Any(x => x.QuestionId <= 0 || x.Choices is null || x.Choices.Any(y => y.Id <= 0)))
+            return BadRequest(new { message = "At least one valid answer is required." });
 
         ExitInterviewAttachment? attachment = null;
         if (form.Attachment is { } file)
         {
-            const long maxBytes = 5 * 1024 * 1024;
-            if (file.Length == 0 || file.Length > maxBytes) return BadRequest(new { message = "Attachment must be between 1 byte and 5 MB." });
             var fileName = Path.GetFileName(file.FileName);
-            if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 255) return BadRequest(new { message = "Invalid attachment filename." });
-            await using var stream = file.OpenReadStream();
-            using var buffer = new MemoryStream();
-            await stream.CopyToAsync(buffer, cancellationToken);
-            var bytes = buffer.ToArray();
+            if (string.IsNullOrWhiteSpace(fileName) || fileName.Length > 255)
+                return BadRequest(new { message = "Invalid attachment filename." });
+            byte[] bytes;
+            try { bytes = Convert.FromBase64String(file.Base64Content); }
+            catch (FormatException) { return BadRequest(new { message = "Attachment must contain valid base64 data." }); }
+            if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024)
+                return BadRequest(new { message = "Attachment must be between 1 byte and 5 MB." });
             var isPdf = bytes.Length >= 5 && bytes.AsSpan(0, 5).SequenceEqual("%PDF-"u8);
             var isJpg = bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
             var isPng = bytes.Length >= 8 && bytes.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
-            var extension = Path.GetExtension(fileName).ToLowerInvariant();
-            var contentType = (extension, isPdf, isJpg, isPng) switch
+            var contentType = (Path.GetExtension(fileName).ToLowerInvariant(), isPdf, isJpg, isPng) switch
             {
                 (".pdf", true, _, _) => "application/pdf",
                 (".jpg" or ".jpeg", _, true, _) => "image/jpeg",
@@ -64,7 +57,7 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         var request = new InsertAnswersRequest
         {
             FlowId = form.FlowId, TemplateId = form.TemplateId,
-            CreatedUser = form.CreatedUser.Trim(), Status = form.Status, Answers = answers
+            CreatedUser = form.CreatedUser.Trim(), Status = form.Status, Answers = form.Answers
         };
         await exitStaffService.InsertAnswersOnBehalfOfStaffAsync(request, attachment, cancellationToken);
         return Ok(new { flowId = request.FlowId, status = request.Status, message = "Answers saved on behalf of staff successfully." });
