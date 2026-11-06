@@ -7,6 +7,18 @@ namespace ULExitInterview.Infrastructure.ExitStaff;
 
 internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connectionFactory) : IExitStaffRepository
 {
+    public async Task<ExitInterviewAttachment?> GetAttachmentAsync(int flowId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Attachment, AttachmentFileName, AttachmentContentType FROM dbo.tblExitInterviewFlow WHERE ID = @FlowId AND Attachment IS NOT NULL;";
+        AddParameter(command, "@FlowId", DbType.Int32, flowId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+        return new ExitInterviewAttachment((byte[])reader["Attachment"], Convert.ToString(reader["AttachmentFileName"]) ?? "attachment", Convert.ToString(reader["AttachmentContentType"]) ?? "application/octet-stream");
+    }
+
     public async Task InsertAnswersAsync(InsertAnswersRequest request, CancellationToken cancellationToken = default)
     {
         await using var connection = connectionFactory.CreateConnection();
@@ -137,7 +149,7 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT f.ID AS FlowId, f.Status_ID AS FlowStatusId, s.Status AS FlowStatus, t.ID AS TemplateId, t.Name AS TemplateName,
+            SELECT f.ID AS FlowId, f.Status_ID AS FlowStatusId, s.Status AS FlowStatus, f.OnBehalfOfCompletedUser, CASE WHEN f.Attachment IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS HasAttachment, f.AttachmentFileName, f.AttachmentContentType, f.HRRemark, t.ID AS TemplateId, t.Name AS TemplateName,
                    q.ID AS QuestionId, q.Question AS QuestionText, q.[Order] AS QuestionOrder, q.IsRequired AS IsRequired, qt.Code AS QuestionTypeCode,
                    ta.Answer AS TypingAnswer, c.ID AS ChoiceId, c.ChoiceName AS ChoiceText, c.[Order] AS ChoiceOrder,
                    CASE WHEN ca.ID IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS IsSelected
@@ -155,12 +167,17 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
             """;
         AddParameter(command, "@StaffId", DbType.String, staffId.Trim());
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        int? templateId = null; string templateName = string.Empty; int flowId = 0; int flowStatusId = 0; string flowStatus = string.Empty;
+        int? templateId = null; string templateName = string.Empty; int flowId = 0; int flowStatusId = 0; string flowStatus = string.Empty; string? onBehalfOfCompletedUser = null; bool hasAttachment = false; string? attachmentFileName = null; string? attachmentContentType = null; string? hrRemark = null;
         var questions = new Dictionary<int, QuestionBuilder>();
         while (await reader.ReadAsync(cancellationToken))
         {
             templateId ??= Convert.ToInt32(reader["TemplateId"]); templateName = Convert.ToString(reader["TemplateName"]) ?? string.Empty;
             flowId = Convert.ToInt32(reader["FlowId"]); flowStatusId = Convert.ToInt32(reader["FlowStatusId"]); flowStatus = Convert.ToString(reader["FlowStatus"]) ?? string.Empty;
+            onBehalfOfCompletedUser = reader["OnBehalfOfCompletedUser"] == DBNull.Value ? null : Convert.ToString(reader["OnBehalfOfCompletedUser"]);
+            hasAttachment = Convert.ToBoolean(reader["HasAttachment"]);
+            attachmentFileName = reader["AttachmentFileName"] == DBNull.Value ? null : Convert.ToString(reader["AttachmentFileName"]);
+            attachmentContentType = reader["AttachmentContentType"] == DBNull.Value ? null : Convert.ToString(reader["AttachmentContentType"]);
+            hrRemark = reader["HRRemark"] == DBNull.Value ? null : Convert.ToString(reader["HRRemark"]);
             var questionId = Convert.ToInt32(reader["QuestionId"]);
             if (!questions.TryGetValue(questionId, out var question))
             {
@@ -174,7 +191,7 @@ internal sealed class SQLExitStaffRepository(IPrimarySqlConnectionFactory connec
             }
         }
         if (templateId is null) return null;
-        return new AssignedTemplateDto(templateId.Value, templateName, flowId, flowStatusId, flowStatus, questions.Values.OrderBy(x => x.Order).Select(x => new AssignedQuestionAnswerDto(x.QuestionId, x.QuestionText, x.Order, x.IsRequired, x.QuestionTypeCode, x.TypingAnswer, x.Choices.OrderBy(c => c.Order).ToList())).ToList());
+        return new AssignedTemplateDto(templateId.Value, templateName, flowId, flowStatusId, flowStatus, onBehalfOfCompletedUser, hasAttachment, attachmentFileName, attachmentContentType, hrRemark, questions.Values.OrderBy(x => x.Order).Select(x => new AssignedQuestionAnswerDto(x.QuestionId, x.QuestionText, x.Order, x.IsRequired, x.QuestionTypeCode, x.TypingAnswer, x.Choices.OrderBy(c => c.Order).ToList())).ToList());
     }
 
     private sealed class QuestionBuilder(int questionId, string questionText, int order, bool isRequired, string questionTypeCode, string? typingAnswer)
