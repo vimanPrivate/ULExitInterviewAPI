@@ -5,11 +5,23 @@ using ULExitInterview.Application.ExitStaff;
 
 namespace ULExitInterview.API.Controllers;
 
-[AllowAnonymous]
 [ApiController]
 [Route("api/exit-staff")]
 public sealed class ExitStaffController(IExitStaffService exitStaffService) : ControllerBase
 {
+    [AllowAnonymous]
+    [Authorize(Roles = "HR")]
+    [HttpGet("getAttachment/{flowId:int}")]
+    public async Task<IActionResult> GetAttachment(int flowId, CancellationToken cancellationToken)
+    {
+        if (flowId <= 0) return BadRequest(new { message = "Invalid flow ID." });
+        var attachment = await exitStaffService.GetAttachmentAsync(flowId, cancellationToken);
+        if (attachment is null) return NotFound(new { message = "Attachment not found." });
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers.XContentTypeOptions = "nosniff";
+        return File(attachment.Content, attachment.ContentType, Path.GetFileName(attachment.FileName));
+    }
+
     [HttpPost("insertAnswers")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -19,6 +31,7 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         return Ok(new { message = "Answers saved successfully." });
     }
 
+    [AllowAnonymous]
     [HttpPost("insertAnswersOnBehalfOfStaff")]
     [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -63,6 +76,7 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         return Ok(new { flowId = request.FlowId, status = request.Status, message = "Answers saved on behalf of staff successfully." });
     }
 
+    [AllowAnonymous]
     [HttpPost("staffInfo")]
     [ProducesResponseType(typeof(StaffInfoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -72,6 +86,7 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         return staffInfo is null ? NotFound(new { message = "Staff member not found." }) : Ok(staffInfo);
     }
 
+    [AllowAnonymous]
     [HttpPost("createExitStaffAForm")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -81,6 +96,7 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         return Ok(new { id = flowId, staffID = request.StaffID, message = "Exit staff form created successfully." });
     }
 
+    [AllowAnonymous]
     [HttpPost("setBeginStatus")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -97,6 +113,7 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         }
     }
 
+    [AllowAnonymous]
     [HttpPost("setFinalRemarks")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -109,6 +126,7 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
             : NotFound(new { message = "Exit interview flow not found." });
     }
 
+    [Authorize(Roles = "HR")]
     [HttpPost("getAssignedTemplates")]
     [ProducesResponseType(typeof(AssignedTemplateResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -118,6 +136,7 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         return result is null ? NotFound(new { message = "Staff member or assigned template was not found." }) : Ok(result);
     }
 
+    [AllowAnonymous]
     [HttpPost("getExitInterviewInfo")]
     [ProducesResponseType(typeof(ExitInterviewInfoResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
