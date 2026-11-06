@@ -17,8 +17,8 @@ public sealed class ExitStaffController(IExitStaffService exitStaffService) : Co
         if (flowId <= 0) return BadRequest(new { message = "Invalid flow ID." });
         var attachment = await exitStaffService.GetAttachmentAsync(flowId, cancellationToken);
         if (attachment is null) return NotFound(new { message = "Attachment not found." });
-        Response.Headers.CacheControl = "private, no-store";
-        Response.Headers.XContentTypeOptions = "nosniff";
+        Response.Headers["Cache-Control"] = "private, no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(attachment.Content, attachment.ContentType, Path.GetFileName(attachment.FileName));
     }
 
