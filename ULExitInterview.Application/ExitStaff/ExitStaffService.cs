@@ -24,7 +24,8 @@ public sealed class ExitStaffService(
             throw new InvalidOperationException($"Email address is not available for staff ID '{normalizedStaffId}'.");
 
         var flowId = await exitStaffRepository.CreateExitStaffFormAsync(staffInfo, cancellationToken);
-        await emailService.SendExitInterviewFormAsync(staffInfo.Email, cancellationToken);
+        var employee = await staffInfoRepository.GetStaffInfoAsync(normalizedStaffId, cancellationToken);
+        await emailService.SendExitInterviewFormAsync(staffInfo.Email, employee?.Name ?? normalizedStaffId, cancellationToken);
         await exitStaffRepository.MarkEmailSentAsync(flowId, cancellationToken);
         return flowId;
     }
