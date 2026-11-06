@@ -27,7 +27,7 @@ internal sealed class SmtpEmailService(IConfiguration configuration) : IEmailSer
 
         using var message = new MailMessage
         {
-            From = new MailAddress(SenderEmail),
+            From = new MailAddress(SenderEmail,"HRSavan"),
             Subject = Subject,
             IsBodyHtml = true
         };
