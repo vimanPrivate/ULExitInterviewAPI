@@ -16,6 +16,11 @@ public sealed record AssignedTemplateResponseDto(
     int FlowId,
     int FlowStatusId,
     string FlowStatus,
+    string? OnBehalfOfCompletedUser,
+    bool HasAttachment,
+    string? AttachmentFileName,
+    string? AttachmentContentType,
+    string? HrRemark,
     AssignedTemplateDto Template);
 
 public sealed record AssignedTemplateDto(
@@ -24,6 +29,11 @@ public sealed record AssignedTemplateDto(
     int FlowId,
     int FlowStatusId,
     string FlowStatus,
+    string? OnBehalfOfCompletedUser,
+    bool HasAttachment,
+    string? AttachmentFileName,
+    string? AttachmentContentType,
+    string? HrRemark,
     IReadOnlyList<AssignedQuestionAnswerDto> QandA);
 
 public sealed record AssignedQuestionAnswerDto(
