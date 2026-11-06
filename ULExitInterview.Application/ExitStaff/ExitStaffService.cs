@@ -5,6 +5,9 @@ public sealed class ExitStaffService(
     IStaffInfoRepository staffInfoRepository,
     IEmailService emailService) : IExitStaffService
 {
+    public Task<ExitInterviewAttachment?> GetAttachmentAsync(int flowId, CancellationToken cancellationToken = default)
+        => exitStaffRepository.GetAttachmentAsync(flowId, cancellationToken);
+
     public Task InsertAnswersAsync(InsertAnswersRequest request, CancellationToken cancellationToken = default)
         => exitStaffRepository.InsertAnswersAsync(request, cancellationToken);
 
@@ -61,6 +64,11 @@ public sealed class ExitStaffService(
             template.FlowId,
             template.FlowStatusId,
             template.FlowStatus,
+            template.OnBehalfOfCompletedUser,
+            template.HasAttachment,
+            template.AttachmentFileName,
+            template.AttachmentContentType,
+            template.HrRemark,
             template);
     }
 
