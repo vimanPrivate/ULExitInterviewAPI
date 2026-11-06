@@ -2,6 +2,7 @@ namespace ULExitInterview.Application.ExitStaff;
 
 public interface IExitStaffService
 {
+    Task<ExitInterviewAttachment?> GetAttachmentAsync(int flowId, CancellationToken cancellationToken = default);
     Task InsertAnswersAsync(InsertAnswersRequest request, CancellationToken cancellationToken = default);
     Task InsertAnswersOnBehalfOfStaffAsync(InsertAnswersRequest request, ExitInterviewAttachment? attachment, CancellationToken cancellationToken = default);
     Task<StaffInfoDto?> GetStaffInfoAsync(string staffId, CancellationToken cancellationToken = default);
