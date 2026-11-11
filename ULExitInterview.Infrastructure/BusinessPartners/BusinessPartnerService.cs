@@ -30,12 +30,21 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
                 await using var command = connection.CreateCommand();
                 command.Transaction = transaction;
                 command.CommandText = """
-                    INSERT INTO dbo.tblBpAssignedCostCenters (tblBusinessPartners_ID, Division, CostCenter)
-                    SELECT @BpId, @Division, @CostCenter
-                    WHERE NOT EXISTS (
+                    UPDATE dbo.tblBpAssignedCostCenters WITH (UPDLOCK, HOLDLOCK)
+                    SET IsActive = 1
+                    WHERE tblBusinessPartners_ID = @BpId
+                      AND Division = @Division
+                      AND CostCenter = @CostCenter
+                      AND IsActive = 0;
+
+                    IF @@ROWCOUNT = 0 AND NOT EXISTS (
                         SELECT 1 FROM dbo.tblBpAssignedCostCenters WITH (UPDLOCK, HOLDLOCK)
                         WHERE tblBusinessPartners_ID = @BpId AND Division = @Division AND CostCenter = @CostCenter
-                    );
+                    )
+                    BEGIN
+                        INSERT INTO dbo.tblBpAssignedCostCenters (tblBusinessPartners_ID, Division, CostCenter, IsActive)
+                        VALUES (@BpId, @Division, @CostCenter, 1);
+                    END;
                     """;
                 var id = command.CreateParameter(); id.ParameterName = "@BpId"; id.DbType = DbType.Int32; id.Value = request.BpId; command.Parameters.Add(id);
                 var division = command.CreateParameter(); division.ParameterName = "@Division"; division.DbType = DbType.String; division.Size = 200; division.Value = item.Division; command.Parameters.Add(division);
