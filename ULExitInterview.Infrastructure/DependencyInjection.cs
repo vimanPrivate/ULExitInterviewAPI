@@ -2,10 +2,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ULExitInterview.Application.Abstractions.Persistence;
 using ULExitInterview.Application.Authentication;
+using ULExitInterview.Application.BusinessPartners;
 using ULExitInterview.Application.Divisions;
 using ULExitInterview.Application.ExitStaff;
 using ULExitInterview.Application.Templates;
 using ULExitInterview.Infrastructure.Authentication;
+using ULExitInterview.Infrastructure.BusinessPartners;
 using ULExitInterview.Infrastructure.Divisions;
 using ULExitInterview.Infrastructure.ExitStaff;
 using ULExitInterview.Infrastructure.Persistence;
@@ -84,6 +86,7 @@ public static class DependencyInjection
         services.AddScoped<IStaffInfoRepository, OracleExitStaffRepository>();
         services.AddScoped<IEmailService, SmtpEmailService>();
         services.AddScoped<IExitStaffService, ExitStaffService>();
+        services.AddScoped<IBusinessPartnerService, BusinessPartnerService>();
 
         return services;
     }
