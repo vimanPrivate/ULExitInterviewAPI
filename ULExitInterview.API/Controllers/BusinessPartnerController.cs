@@ -13,6 +13,31 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
 {
     public sealed record AddBusinessPartnerRequest([Required, StringLength(20, MinimumLength = 1)] string StaffId);
 
+    public sealed record SetActingStaffRequest(
+        [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId,
+        [Required, StringLength(20, MinimumLength = 1)] string ActingStaffId);
+
+    [HttpPost("SetActingStaff")]
+    public async Task<IActionResult> SetActingStaff([FromBody] SetActingStaffRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.MasterStaffId) || string.IsNullOrWhiteSpace(request.ActingStaffId))
+            return BadRequest(new { message = "MasterStaffId and ActingStaffId are required." });
+
+        var masterStaffId = request.MasterStaffId.Trim();
+        var actingStaffId = request.ActingStaffId.Trim();
+        if (masterStaffId.Equals(actingStaffId, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Master staff and acting staff must be different." });
+
+        var updatedUser = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(updatedUser) || updatedUser.Length > 20)
+            return Forbid();
+
+        var updated = await businessPartnerService.SetActingStaffAsync(masterStaffId, actingStaffId, updatedUser, cancellationToken);
+        if (!updated) return NotFound(new { message = "No active business partner found for MasterStaffId." });
+
+        return Ok(new { masterStaffId, actingStaffId, message = "Acting staff updated successfully." });
+    }
+
     [HttpPost("AddBusinessPartner")]
     public async Task<IActionResult> AddBusinessPartner([FromBody] AddBusinessPartnerRequest request, CancellationToken cancellationToken)
     {
