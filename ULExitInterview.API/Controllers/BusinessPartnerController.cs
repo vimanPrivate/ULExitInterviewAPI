@@ -17,6 +17,24 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
         [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId,
         [Required, StringLength(20, MinimumLength = 1)] string ActingStaffId);
 
+    [HttpPost("AssignCostCenters")]
+    public async Task<IActionResult> AssignCostCenters([FromBody] AssignCostCentersRequest request, CancellationToken cancellationToken)
+    {
+        if (request.CostCenters is null || request.CostCenters.Count == 0 ||
+            request.CostCenters.Any(x => x is null || string.IsNullOrWhiteSpace(x.Division) || string.IsNullOrWhiteSpace(x.CostCenter)))
+            return BadRequest(new { message = "At least one valid division and cost center is required." });
+
+        try
+        {
+            var inserted = await businessPartnerService.AssignCostCentersAsync(request, cancellationToken);
+            return Ok(new { bpId = request.BpId, insertedCount = inserted, message = "Cost centers assigned successfully." });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Active business partner not found." });
+        }
+    }
+
     [HttpPost("SetActingStaff")]
     public async Task<IActionResult> SetActingStaff([FromBody] SetActingStaffRequest request, CancellationToken cancellationToken)
     {
