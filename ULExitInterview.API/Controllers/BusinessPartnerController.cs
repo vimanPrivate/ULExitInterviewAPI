@@ -7,7 +7,8 @@ using ULExitInterview.Application.BusinessPartners;
 namespace ULExitInterview.API.Controllers;
 
 [ApiController]
-[Authorize]
+//[Authorize]
+[AllowAnonymous]
 [Route("api/business-partner")]
 public sealed class BusinessPartnerController(IBusinessPartnerService businessPartnerService, IStaffLookupService staffLookupService) : ControllerBase
 {
