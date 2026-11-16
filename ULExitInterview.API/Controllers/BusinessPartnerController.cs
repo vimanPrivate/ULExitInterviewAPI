@@ -40,7 +40,8 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
 
     public sealed record AssignActingStaffRequest(
         [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId,
-        [Required, StringLength(20, MinimumLength = 1)] string ActingStaffId);
+        [Required, StringLength(20, MinimumLength = 1)] string ActingStaffId,
+        [Required, StringLength(20, MinimumLength = 1)] string CreatedUser);
 
     public sealed record RemoveActingStaffRequest(
         [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId);
@@ -66,19 +67,15 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
     [HttpPost("AssignActingStaff")]
     public async Task<IActionResult> AssignActingStaff([FromBody] AssignActingStaffRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.MasterStaffId) || string.IsNullOrWhiteSpace(request.ActingStaffId))
-            return BadRequest(new { message = "masterStaffId and actingStaffId are required." });
+        if (string.IsNullOrWhiteSpace(request.MasterStaffId) || string.IsNullOrWhiteSpace(request.ActingStaffId) || string.IsNullOrWhiteSpace(request.CreatedUser))
+            return BadRequest(new { message = "masterStaffId, actingStaffId and createdUser are required." });
 
         var masterStaffId = request.MasterStaffId.Trim();
         var actingStaffId = request.ActingStaffId.Trim();
         if (masterStaffId.Equals(actingStaffId, StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { message = "Master and acting staff IDs must differ." });
 
-        var createdUser = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name;
-        if (string.IsNullOrWhiteSpace(createdUser) || createdUser.Length > 20)
-            return Forbid();
-
-        var bpId = await businessPartnerService.AssignActingStaffAsync(masterStaffId, actingStaffId, createdUser, cancellationToken);
+        var bpId = await businessPartnerService.AssignActingStaffAsync(masterStaffId, actingStaffId, request.CreatedUser.Trim(), cancellationToken);
         return Ok(new { bpId, masterStaffId, actingStaffId, message = "Acting staff assigned successfully." });
     }
 
