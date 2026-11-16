@@ -15,15 +15,15 @@ internal sealed class OracleStaffLookupService(IOracleConnectionFactory connecti
         command.CommandText = """
             SELECT EMP_NUMBER, CALLING_NAME
             FROM VW_HS_HR_EMPLOYEE_CHARIKA_ALL
-            WHERE UPPER(CALLING_NAME) LIKE :SearchName ESCAPE '\\'
-               OR UPPER(EMP_NUMBER) LIKE :SearchId ESCAPE '\\'
+            WHERE UPPER(CALLING_NAME) LIKE :SearchName ESCAPE '!'
+               OR UPPER(EMP_NUMBER) LIKE :SearchId ESCAPE '!'
             ORDER BY CALLING_NAME, EMP_NUMBER
             FETCH FIRST 50 ROWS ONLY
             """;
         var search = nameOrStaffId.Trim().ToUpperInvariant()
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal);
+            .Replace("!", "!!", StringComparison.Ordinal)
+            .Replace("%", "!%", StringComparison.Ordinal)
+            .Replace("_", "!_", StringComparison.Ordinal);
         foreach (var parameterName in new[] { "SearchName", "SearchId" })
         {
             var parameter = command.CreateParameter();
