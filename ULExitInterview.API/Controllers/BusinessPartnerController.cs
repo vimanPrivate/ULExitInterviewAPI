@@ -14,7 +14,8 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
 {
     public sealed record AddBusinessPartnerRequest(
         [Required, StringLength(20, MinimumLength = 1)] string StaffId,
-        [Required, MinLength(1)] IReadOnlyList<BpCostCenterItem> CostCenters);
+        [Required, MinLength(1)] IReadOnlyList<BpCostCenterItem> CostCenters,
+        [Required, StringLength(20, MinimumLength = 1)] string CreatedUser);
 
     public sealed record GetStaffRequest([Required, StringLength(100, MinimumLength = 1)] string NameOrStaffId);
 
@@ -85,17 +86,14 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
     public async Task<IActionResult> AddBusinessPartner([FromBody] AddBusinessPartnerRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.StaffId) ||
+            string.IsNullOrWhiteSpace(request.CreatedUser) ||
             request.CostCenters is null || request.CostCenters.Count == 0 ||
             request.CostCenters.Any(x => x is null ||
                 string.IsNullOrWhiteSpace(x.Division) || string.IsNullOrWhiteSpace(x.CostCenter)))
-            return BadRequest(new { message = "StaffId and at least one valid cost center are required." });
-
-        var createdUser = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name;
-        if (string.IsNullOrWhiteSpace(createdUser) || createdUser.Length > 20)
-            return Forbid();
+            return BadRequest(new { message = "StaffId, createdUser and at least one valid cost center are required." });
 
         var id = await businessPartnerService.AddBusinessPartnerWithCostCentersAsync(
-            request.StaffId.Trim(), request.CostCenters, createdUser, cancellationToken);
+            request.StaffId.Trim(), request.CostCenters, request.CreatedUser.Trim(), cancellationToken);
         return Ok(new { bpId = id, message = "Business partner and cost centers added successfully." });
     }
 }
