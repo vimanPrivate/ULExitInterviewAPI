@@ -87,6 +87,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailService, SmtpEmailService>();
         services.AddScoped<IExitStaffService, ExitStaffService>();
         services.AddScoped<IBusinessPartnerService, BusinessPartnerService>();
+        services.AddScoped<IStaffLookupService, OracleStaffLookupService>();
 
         return services;
     }
