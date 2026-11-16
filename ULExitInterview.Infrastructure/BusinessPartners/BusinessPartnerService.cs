@@ -6,6 +6,25 @@ namespace ULExitInterview.Infrastructure.BusinessPartners;
 
 internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connectionFactory) : IBusinessPartnerService
 {
+    public async Task<bool> RemoveActingStaffAsync(string masterStaffId, string updatedUser, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE dbo.tblBusinessPartners
+            SET IsMasterActive = 0,
+                UpdatedDate = GETDATE(),
+                UpdatedUser = @UpdatedUser
+            WHERE MasterStaffId = @MasterStaffId
+              AND IsMasterActive = 1
+              AND ActingStaffID IS NOT NULL;
+            """;
+        AddParameter(command, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
+        AddParameter(command, "@UpdatedUser", DbType.AnsiString, 20, updatedUser);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
     public async Task<int> AssignActingStaffAsync(string masterStaffId, string actingStaffId, string createdUser, CancellationToken cancellationToken = default)
     {
         await using var connection = connectionFactory.CreateConnection();
