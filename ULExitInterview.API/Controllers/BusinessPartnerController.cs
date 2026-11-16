@@ -28,6 +28,29 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
         return Ok(staff);
     }
 
+    public sealed record AssignActingStaffRequest(
+        [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId,
+        [Required, StringLength(20, MinimumLength = 1)] string ActingStaffId);
+
+    [HttpPost("AssignActingStaff")]
+    public async Task<IActionResult> AssignActingStaff([FromBody] AssignActingStaffRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.MasterStaffId) || string.IsNullOrWhiteSpace(request.ActingStaffId))
+            return BadRequest(new { message = "masterStaffId and actingStaffId are required." });
+
+        var masterStaffId = request.MasterStaffId.Trim();
+        var actingStaffId = request.ActingStaffId.Trim();
+        if (masterStaffId.Equals(actingStaffId, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Master and acting staff IDs must differ." });
+
+        var createdUser = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(createdUser) || createdUser.Length > 20)
+            return Forbid();
+
+        var bpId = await businessPartnerService.AssignActingStaffAsync(masterStaffId, actingStaffId, createdUser, cancellationToken);
+        return Ok(new { bpId, masterStaffId, actingStaffId, message = "Acting staff assigned successfully." });
+    }
+
     [HttpPost("addBusinessPartner")]
     public async Task<IActionResult> AddBusinessPartner([FromBody] AddBusinessPartnerRequest request, CancellationToken cancellationToken)
     {
