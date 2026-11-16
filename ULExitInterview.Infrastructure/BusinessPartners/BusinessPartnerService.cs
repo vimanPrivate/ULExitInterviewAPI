@@ -6,6 +6,61 @@ namespace ULExitInterview.Infrastructure.BusinessPartners;
 
 internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connectionFactory) : IBusinessPartnerService
 {
+    public async Task<int> AddBusinessPartnerWithCostCentersAsync(string staffId, IReadOnlyList<BpCostCenterItem> costCenters, string createdUser, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await using var create = connection.CreateCommand();
+            create.Transaction = transaction;
+            create.CommandText = """
+                INSERT INTO dbo.tblBusinessPartners
+                    (MasterStaffId, IsMasterActive, ActingStaffID, CreatedDate, CreatedUser)
+                OUTPUT INSERTED.ID
+                VALUES (@StaffId, 1, NULL, GETDATE(), @CreatedUser);
+                """;
+            AddParameter(create, "@StaffId", DbType.AnsiString, 20, staffId);
+            AddParameter(create, "@CreatedUser", DbType.AnsiString, 20, createdUser);
+            var bpId = Convert.ToInt32(await create.ExecuteScalarAsync(cancellationToken));
+
+            foreach (var item in costCenters
+                         .Select(x => new { Division = x.Division.Trim(), CostCenter = x.CostCenter.Trim() })
+                         .DistinctBy(x => (x.Division.ToUpperInvariant(), x.CostCenter.ToUpperInvariant())))
+            {
+                await using var insert = connection.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = """
+                    INSERT INTO dbo.tblBpAssignedCostCenters
+                        (tblBusinessPartners_ID, Division, CostCenter)
+                    VALUES (@BpId, @Division, @CostCenter);
+                    """;
+                AddParameter(insert, "@BpId", DbType.Int32, 0, bpId);
+                AddParameter(insert, "@Division", DbType.String, 200, item.Division);
+                AddParameter(insert, "@CostCenter", DbType.String, 200, item.CostCenter);
+                await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
+            await transaction.CommitAsync(cancellationToken);
+            return bpId;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private static void AddParameter(System.Data.Common.DbCommand command, string name, DbType type, int size, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = type;
+        if (size > 0) parameter.Size = size;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
     public async Task<int> AssignCostCentersAsync(AssignCostCentersRequest request, CancellationToken cancellationToken = default)
     {
         await using var connection = connectionFactory.CreateConnection();
