@@ -17,6 +17,14 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
 
     public sealed record GetStaffRequest([Required, StringLength(100, MinimumLength = 1)] string NameOrStaffId);
 
+    [HttpGet("GetAssignedBusinessPartners")]
+    [ProducesResponseType(typeof(IReadOnlyList<AssignedBusinessPartnerDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<AssignedBusinessPartnerDto>>> GetAssignedBusinessPartners(CancellationToken cancellationToken)
+    {
+        var partners = await businessPartnerService.GetAssignedBusinessPartnersAsync(cancellationToken);
+        return Ok(partners);
+    }
+
     [HttpPost("getStaff")]
     [ProducesResponseType(typeof(IReadOnlyList<StaffLookupDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<StaffLookupDto>>> GetStaff([FromBody] GetStaffRequest request, CancellationToken cancellationToken)
