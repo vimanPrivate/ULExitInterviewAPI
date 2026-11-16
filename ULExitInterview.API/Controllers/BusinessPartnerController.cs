@@ -32,6 +32,27 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
         [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId,
         [Required, StringLength(20, MinimumLength = 1)] string ActingStaffId);
 
+    public sealed record RemoveActingStaffRequest(
+        [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId);
+
+    [HttpPost("RemoveActingStaff")]
+    public async Task<IActionResult> RemoveActingStaff([FromBody] RemoveActingStaffRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.MasterStaffId))
+            return BadRequest(new { message = "masterStaffId is required." });
+
+        var updatedUser = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(updatedUser) || updatedUser.Length > 20)
+            return Forbid();
+
+        var masterStaffId = request.MasterStaffId.Trim();
+        var removed = await businessPartnerService.RemoveActingStaffAsync(masterStaffId, updatedUser, cancellationToken);
+        if (!removed)
+            return NotFound(new { message = "No active acting staff assignment found for this master staff ID." });
+
+        return Ok(new { masterStaffId, message = "Acting staff removed successfully." });
+    }
+
     [HttpPost("AssignActingStaff")]
     public async Task<IActionResult> AssignActingStaff([FromBody] AssignActingStaffRequest request, CancellationToken cancellationToken)
     {
