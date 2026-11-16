@@ -46,6 +46,25 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
     public sealed record RemoveActingStaffRequest(
         [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId);
 
+    public sealed record RemoveBusinessPartnerRequest(
+        [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId,
+        [Required, StringLength(20, MinimumLength = 1)] string CreatedUser);
+
+    [HttpPost("RemoveBusinessPartner")]
+    public async Task<IActionResult> RemoveBusinessPartner([FromBody] RemoveBusinessPartnerRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.MasterStaffId) || string.IsNullOrWhiteSpace(request.CreatedUser))
+            return BadRequest(new { message = "masterStaffId and createdUser are required." });
+
+        var masterStaffId = request.MasterStaffId.Trim();
+        var affectedRows = await businessPartnerService.RemoveBusinessPartnerAsync(
+            masterStaffId, request.CreatedUser.Trim(), cancellationToken);
+        if (affectedRows == 0)
+            return NotFound(new { message = "No active business partner found for this master staff ID." });
+
+        return Ok(new { masterStaffId, affectedRows, message = "Business partner removed successfully." });
+    }
+
     [HttpPost("RemoveActingStaff")]
     public async Task<IActionResult> RemoveActingStaff([FromBody] RemoveActingStaffRequest request, CancellationToken cancellationToken)
     {
