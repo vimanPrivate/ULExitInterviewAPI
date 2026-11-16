@@ -46,6 +46,24 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
         return partners;
     }
 
+    public async Task<int> RemoveBusinessPartnerAsync(string masterStaffId, string updatedUser, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE dbo.tblBusinessPartners
+            SET IsMasterActive = 0,
+                UpdatedDate = GETDATE(),
+                UpdatedUser = @UpdatedUser
+            WHERE MasterStaffId = @MasterStaffId
+              AND IsMasterActive = 1;
+            """;
+        AddParameter(command, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
+        AddParameter(command, "@UpdatedUser", DbType.AnsiString, 20, updatedUser);
+        return await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task<bool> RemoveActingStaffAsync(string masterStaffId, string updatedUser, CancellationToken cancellationToken = default)
     {
         await using var connection = connectionFactory.CreateConnection();
