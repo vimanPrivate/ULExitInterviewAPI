@@ -6,6 +6,46 @@ namespace ULExitInterview.Infrastructure.BusinessPartners;
 
 internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connectionFactory) : IBusinessPartnerService
 {
+    public async Task<IReadOnlyList<AssignedBusinessPartnerDto>> GetAssignedBusinessPartnersAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT bp.ID AS BpId, bp.MasterStaffId, bp.ActingStaffID,
+                   cc.Division, cc.CostCenter
+            FROM dbo.tblBusinessPartners AS bp
+            LEFT JOIN dbo.tblBpAssignedCostCenters AS cc
+                ON cc.tblBusinessPartners_ID = bp.ID
+            WHERE bp.IsMasterActive = 1
+            ORDER BY bp.ID, cc.Division, cc.CostCenter;
+            """;
+
+        var partners = new List<AssignedBusinessPartnerDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        int? currentId = null;
+        List<BpCostCenterItem>? currentCostCenters = null;
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var bpId = Convert.ToInt32(reader["BpId"]);
+            if (currentId != bpId)
+            {
+                currentId = bpId;
+                currentCostCenters = new List<BpCostCenterItem>();
+                partners.Add(new AssignedBusinessPartnerDto(
+                    bpId,
+                    Convert.ToString(reader["MasterStaffId"]) ?? string.Empty,
+                    reader["ActingStaffID"] == DBNull.Value ? null : Convert.ToString(reader["ActingStaffID"]),
+                    currentCostCenters));
+            }
+            if (reader["Division"] != DBNull.Value && reader["CostCenter"] != DBNull.Value)
+                currentCostCenters!.Add(new BpCostCenterItem(
+                    Convert.ToString(reader["Division"]) ?? string.Empty,
+                    Convert.ToString(reader["CostCenter"]) ?? string.Empty));
+        }
+        return partners;
+    }
+
     public async Task<bool> RemoveActingStaffAsync(string masterStaffId, string updatedUser, CancellationToken cancellationToken = default)
     {
         await using var connection = connectionFactory.CreateConnection();
