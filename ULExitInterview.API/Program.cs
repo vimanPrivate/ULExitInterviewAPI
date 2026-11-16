@@ -43,6 +43,8 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddSwaggerGen(options =>
 {
+    // Avoid schema ID collisions between DTOs in different namespaces.
+    options.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace("+", "."));
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
