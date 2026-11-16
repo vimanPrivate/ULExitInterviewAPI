@@ -9,11 +9,24 @@ namespace ULExitInterview.API.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/business-partner")]
-public sealed class BusinessPartnerController(IBusinessPartnerService businessPartnerService) : ControllerBase
+public sealed class BusinessPartnerController(IBusinessPartnerService businessPartnerService, IStaffLookupService staffLookupService) : ControllerBase
 {
     public sealed record AddBusinessPartnerRequest(
         [Required, StringLength(20, MinimumLength = 1)] string StaffId,
         [Required, MinLength(1)] IReadOnlyList<BpCostCenterItem> CostCenters);
+
+    public sealed record GetStaffRequest([Required, StringLength(100, MinimumLength = 1)] string NameOrStaffId);
+
+    [HttpPost("getStaff")]
+    [ProducesResponseType(typeof(IReadOnlyList<StaffLookupDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<StaffLookupDto>>> GetStaff([FromBody] GetStaffRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.NameOrStaffId))
+            return BadRequest(new { message = "nameOrStaffId is required." });
+
+        var staff = await staffLookupService.GetStaffAsync(request.NameOrStaffId, cancellationToken);
+        return Ok(staff);
+    }
 
     [HttpPost("addBusinessPartner")]
     public async Task<IActionResult> AddBusinessPartner([FromBody] AddBusinessPartnerRequest request, CancellationToken cancellationToken)
