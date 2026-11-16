@@ -64,8 +64,8 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
                 copy.Transaction = transaction;
                 copy.CommandText = """
                     INSERT INTO dbo.tblBpAssignedCostCenters
-                        (tblBusinessPartners_ID, Division, CostCenter, IsActive)
-                    SELECT @NewBpId, Division, CostCenter, IsActive
+                        (tblBusinessPartners_ID, Division, CostCenter)
+                    SELECT @NewBpId, Division, CostCenter
                     FROM dbo.tblBpAssignedCostCenters
                     WHERE tblBusinessPartners_ID = @PreviousBpId;
                     """;
