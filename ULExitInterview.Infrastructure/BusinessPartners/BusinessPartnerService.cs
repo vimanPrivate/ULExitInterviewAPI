@@ -90,29 +90,16 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
         await using var command = connection.CreateCommand();
         command.CommandText = """
             UPDATE dbo.tblBusinessPartners
-            SET ActingStaffID = @ActingStaffId,
-                UpdatedDate = GETDATE(),
-                UpdatedUser = @UpdatedUser
-            OUTPUT INSERTED.ID
-            WHERE ID = (
-                SELECT TOP (1) bp.ID
-                FROM dbo.tblBusinessPartners AS bp
-                WHERE bp.MasterStaffId = @MasterStaffId
-                  AND bp.IsMasterActive = 1
-                  AND EXISTS (
-                      SELECT 1
-                      FROM dbo.tblBpAssignedCostCenters AS cc
-                      WHERE cc.tblBusinessPartners_ID = bp.ID
-                        AND cc.IsActive = 1
-                  )
-                ORDER BY bp.ID DESC
-            );
+            SET ActingStaffID = @ActingStaff,
+                UpdatedUser = @CreatedUser,
+                UpdatedDate = GETDATE()
+            WHERE MasterStaffId = @MasterStaffId
+              AND IsMasterActive = 1;
             """;
         AddParameter(command, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
-        AddParameter(command, "@ActingStaffId", DbType.AnsiString, 20, actingStaffId);
-        AddParameter(command, "@UpdatedUser", DbType.AnsiString, 20, createdUser);
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-        return result is null || result == DBNull.Value ? 0 : Convert.ToInt32(result);
+        AddParameter(command, "@ActingStaff", DbType.AnsiString, 20, actingStaffId);
+        AddParameter(command, "@CreatedUser", DbType.AnsiString, 20, createdUser);
+        return await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<int> AddBusinessPartnerWithCostCentersAsync(string staffId, IReadOnlyList<BpCostCenterItem> costCenters, string createdUser, CancellationToken cancellationToken = default)
