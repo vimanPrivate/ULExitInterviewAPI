@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ULExitInterview.Application.Authentication;
+using ULExitInterview.Application.BusinessPartners;
 
 namespace ULExitInterview.Infrastructure.Authentication;
 
@@ -12,6 +13,7 @@ internal sealed class AuthenticationService(
     HttpClient httpClient,
     IOptions<AdAuthenticationOptions> options,
     IJwtTokenService jwtTokenService,
+    IBusinessPartnerService businessPartnerService,
     ILogger<AuthenticationService> logger) : IAuthenticationService
 {
     private readonly AdAuthenticationOptions _options = options.Value;
@@ -80,12 +82,16 @@ internal sealed class AuthenticationService(
             if (roles.Count == 0)
             {
                 var token = jwtTokenService.GenerateToken(staffNo, email, designation, department, []);
-                return new LoginResult(2, token, staffNo, name, email, contactNo, designation, department, []);
+                return new LoginResult(2, token, staffNo, name, email, contactNo, designation, department, [], []);
             }
+
+            IReadOnlyList<BpCostCenterItem> assignedCostCenters = [];
+            if (roles.Contains("SAVAN-Business_Prtner", StringComparer.OrdinalIgnoreCase))
+                assignedCostCenters = await businessPartnerService.GetActiveCostCentersByMasterStaffIdAsync(staffNo, cancellationToken);
 
             var tokenWithRoles = jwtTokenService.GenerateToken(staffNo, email, designation, department, roles);
 
-            return new LoginResult(1, tokenWithRoles, staffNo, name, email, contactNo, designation, department, roles);
+            return new LoginResult(1, tokenWithRoles, staffNo, name, email, contactNo, designation, department, roles, assignedCostCenters);
         }
         catch (JsonException exception)
         {
@@ -105,7 +111,7 @@ internal sealed class AuthenticationService(
     }
 
     private static LoginResult AuthenticationFailed()
-        => new(0, null, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, []);
+        => new(0, null, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, [], []);
 
     private sealed record AdLoginRequest(
         [property: JsonPropertyName("USERNAME")] string Username,
