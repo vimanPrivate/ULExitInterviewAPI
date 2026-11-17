@@ -174,9 +174,9 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
                 create.Transaction = transaction;
                 create.CommandText = """
                     INSERT INTO dbo.tblBusinessPartners
-                        (MasterStaffId, IsMasterActive, ActingStaffID, CreatedDate, CreatedUser, IsActive)
+                        (MasterStaffId, IsMasterActive, ActingStaffID, CreatedDate, CreatedUser)
                     OUTPUT INSERTED.ID
-                    VALUES (@StaffId, 1, NULL, GETDATE(), @CreatedUser, 1);
+                    VALUES (@StaffId, 1, NULL, GETDATE(), @CreatedUser);
                     """;
                 AddParameter(create, "@StaffId", DbType.AnsiString, 20, staffId);
                 AddParameter(create, "@CreatedUser", DbType.AnsiString, 20, createdUser);
