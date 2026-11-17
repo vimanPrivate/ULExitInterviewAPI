@@ -49,21 +49,26 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
 
     public sealed record RemoveBusinessPartnerRequest(
         [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId,
-        [Required, StringLength(20, MinimumLength = 1)] string CreatedUser);
+        [Required, StringLength(20, MinimumLength = 1)] string CreatedUser,
+        [Required, MinLength(1)] IReadOnlyList<BpCostCenterItem> CostCenters);
 
     [HttpPost("RemoveBusinessPartner")]
     public async Task<IActionResult> RemoveBusinessPartner([FromBody] RemoveBusinessPartnerRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.MasterStaffId) || string.IsNullOrWhiteSpace(request.CreatedUser))
-            return BadRequest(new { message = "masterStaffId and createdUser are required." });
+        if (string.IsNullOrWhiteSpace(request.MasterStaffId) ||
+            string.IsNullOrWhiteSpace(request.CreatedUser) ||
+            request.CostCenters is null || request.CostCenters.Count == 0 ||
+            request.CostCenters.Any(x => x is null ||
+                string.IsNullOrWhiteSpace(x.Division) || string.IsNullOrWhiteSpace(x.CostCenter)))
+            return BadRequest(new { message = "masterStaffId, createdUser and at least one valid cost center are required." });
 
         var masterStaffId = request.MasterStaffId.Trim();
         var affectedRows = await businessPartnerService.RemoveBusinessPartnerAsync(
-            masterStaffId, request.CreatedUser.Trim(), cancellationToken);
+            masterStaffId, request.CreatedUser.Trim(), request.CostCenters, cancellationToken);
         if (affectedRows == 0)
-            return NotFound(new { message = "No active business partner found for this master staff ID." });
+            return NotFound(new { message = "No matching active business partner cost center assignments found." });
 
-        return Ok(new { masterStaffId, affectedRows, message = "Business partner removed successfully." });
+        return Ok(new { masterStaffId, affectedRows, message = "Selected cost centers removed successfully." });
     }
 
     [HttpPost("RemoveActingStaff")]
