@@ -94,11 +94,11 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
         if (masterStaffId.Equals(actingStaffId, StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { message = "Master and acting staff IDs must differ." });
 
-        var bpId = await businessPartnerService.AssignActingStaffAsync(masterStaffId, actingStaffId, request.CreatedUser.Trim(), cancellationToken);
-        if (bpId == 0)
-            return NotFound(new { message = "No active business partner with an active cost center assignment found for this master staff ID." });
+        var affectedRows = await businessPartnerService.AssignActingStaffAsync(masterStaffId, actingStaffId, request.CreatedUser.Trim(), cancellationToken);
+        if (affectedRows == 0)
+            return NotFound(new { message = "No active business partner found for this master staff ID." });
 
-        return Ok(new { bpId, masterStaffId, actingStaffId, message = "Acting staff assigned successfully." });
+        return Ok(new { masterStaffId, actingStaffId, affectedRows, message = "Acting staff assigned successfully." });
     }
 
     [HttpPost("addBusinessPartner")]
