@@ -2,6 +2,7 @@ namespace ULExitInterview.Application.BusinessPartners;
 
 public interface IBusinessPartnerService
 {
+    Task<IReadOnlyList<BpCostCenterItem>> GetActiveCostCentersByMasterStaffIdAsync(string masterStaffId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AssignedBusinessPartnerDto>> GetAssignedBusinessPartnersAsync(CancellationToken cancellationToken = default);
     Task<int> RemoveBusinessPartnerAsync(string masterStaffId, string createdUser, IReadOnlyList<BpCostCenterItem> costCenters, CancellationToken cancellationToken = default);
     Task<bool> RemoveActingStaffAsync(string masterStaffId, string updatedUser, CancellationToken cancellationToken = default);
