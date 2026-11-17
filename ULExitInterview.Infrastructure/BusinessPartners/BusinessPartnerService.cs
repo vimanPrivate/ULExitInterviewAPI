@@ -168,17 +168,20 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         try
         {
-            await using var create = connection.CreateCommand();
-            create.Transaction = transaction;
-            create.CommandText = """
-                INSERT INTO dbo.tblBusinessPartners
-                    (MasterStaffId, IsMasterActive, ActingStaffID, CreatedDate, CreatedUser)
-                OUTPUT INSERTED.ID
-                VALUES (@StaffId, 1, NULL, GETDATE(), @CreatedUser);
-                """;
-            AddParameter(create, "@StaffId", DbType.AnsiString, 20, staffId);
-            AddParameter(create, "@CreatedUser", DbType.AnsiString, 20, createdUser);
-            var bpId = Convert.ToInt32(await create.ExecuteScalarAsync(cancellationToken));
+            int bpId;
+            await using (var create = connection.CreateCommand())
+            {
+                create.Transaction = transaction;
+                create.CommandText = """
+                    INSERT INTO dbo.tblBusinessPartners
+                        (MasterStaffId, IsMasterActive, ActingStaffID, CreatedDate, CreatedUser, IsActive)
+                    OUTPUT INSERTED.ID
+                    VALUES (@StaffId, 1, NULL, GETDATE(), @CreatedUser, 1);
+                    """;
+                AddParameter(create, "@StaffId", DbType.AnsiString, 20, staffId);
+                AddParameter(create, "@CreatedUser", DbType.AnsiString, 20, createdUser);
+                bpId = Convert.ToInt32(await create.ExecuteScalarAsync(cancellationToken));
+            }
 
             foreach (var item in costCenters
                          .Select(x => new { Division = x.Division.Trim(), CostCenter = x.CostCenter.Trim() })
@@ -188,14 +191,15 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
                 insert.Transaction = transaction;
                 insert.CommandText = """
                     INSERT INTO dbo.tblBpAssignedCostCenters
-                        (tblBusinessPartners_ID, Division, CostCenter)
-                    VALUES (@BpId, @Division, @CostCenter);
+                        (tblBusinessPartners_ID, Division, CostCenter, IsActive)
+                    VALUES (@BpId, @Division, @CostCenter, 1);
                     """;
                 AddParameter(insert, "@BpId", DbType.Int32, 0, bpId);
                 AddParameter(insert, "@Division", DbType.String, 200, item.Division);
                 AddParameter(insert, "@CostCenter", DbType.String, 200, item.CostCenter);
                 await insert.ExecuteNonQueryAsync(cancellationToken);
             }
+
             await transaction.CommitAsync(cancellationToken);
             return bpId;
         }
