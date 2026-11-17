@@ -38,10 +38,26 @@ internal sealed class OracleExitStaffRepository(IOracleConnectionFactory connect
         var conditions = new List<string>();
         AddContainsFilter(command, conditions, "CALLING_NAME", "StaffName", request.StaffName);
         AddContainsFilter(command, conditions, "EMP_NUMBER", "StaffNo", request.StaffNo);
-        AddContainsFilter(command, conditions, "COST_CENTER_NAME", "CostCenterName", request.CostCenterName);
-        AddEqualsFilter(command, conditions, "COST_CENTER_CODE", "CostCenterCode", request.CostCenterCode);
-        AddContainsFilter(command, conditions, "DIVISION", "DivisionName", request.DivisionName);
-        AddEqualsFilter(command, conditions, "DIVISION_CODE", "DivisionCode", request.DivisionCode);
+        if (request.CostCenters is { Count: > 0 })
+        {
+            var locationGroups = new List<string>();
+            for (var i = 0; i < request.CostCenters.Count; i++)
+            {
+                var filter = request.CostCenters[i];
+                if (filter is null)
+                    throw new InvalidOperationException("costCenters cannot contain null items.");
+
+                var group = new List<string>();
+                AddContainsFilter(command, group, "COST_CENTER_NAME", $"CostCenterName{i}", filter.CostCenterName);
+                AddEqualsFilter(command, group, "COST_CENTER_CODE", $"CostCenterCode{i}", filter.CostCenterCode);
+                AddContainsFilter(command, group, "DIVISION", $"DivisionName{i}", filter.DivisionName);
+                AddEqualsFilter(command, group, "DIVISION_CODE", $"DivisionCode{i}", filter.DivisionCode);
+                if (group.Count == 0)
+                    throw new InvalidOperationException("Each costCenters item must specify at least one search field.");
+                locationGroups.Add("(" + string.Join(" AND ", group) + ")");
+            }
+            conditions.Add("(" + string.Join(" OR ", locationGroups) + ")");
+        }
         if (request.LastWorkingDateFrom.HasValue) { conditions.Add("LAST_EFFECTIVE_DATE >= :DateFrom"); AddParameter(command, "DateFrom", DbType.DateTime, request.LastWorkingDateFrom.Value.Date); }
         if (request.LastWorkingDateTo.HasValue) { conditions.Add("LAST_EFFECTIVE_DATE < :DateTo"); AddParameter(command, "DateTo", DbType.DateTime, request.LastWorkingDateTo.Value.Date.AddDays(1)); }
         var where = conditions.Count == 0 ? string.Empty : " WHERE " + string.Join(" AND ", conditions);
