@@ -1,3 +1,5 @@
+using ULExitInterview.Application.BusinessPartners;
+
 namespace ULExitInterview.Application.Authentication;
 
 public sealed record LoginResult(
@@ -9,4 +11,5 @@ public sealed record LoginResult(
     string ContactNo,
     string Designation,
     string Department,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    IReadOnlyList<BpCostCenterItem> AssignedCostCenter);
