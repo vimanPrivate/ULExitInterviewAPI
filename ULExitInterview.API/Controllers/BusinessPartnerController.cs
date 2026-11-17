@@ -106,10 +106,10 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
             request.CostCenters is null || request.CostCenters.Count == 0 ||
             request.CostCenters.Any(x => x is null ||
                 string.IsNullOrWhiteSpace(x.Division) || string.IsNullOrWhiteSpace(x.CostCenter)))
-            return BadRequest(new { message = "StaffId, createdUser and at least one valid cost center are required." });
+            return BadRequest(new { message = "staffId, createdUser and at least one valid cost center are required." });
 
-        var id = await businessPartnerService.AddBusinessPartnerWithCostCentersAsync(
+        var bpId = await businessPartnerService.AddBusinessPartnerWithCostCentersAsync(
             request.StaffId.Trim(), request.CostCenters, request.CreatedUser.Trim(), cancellationToken);
-        return Ok(new { bpId = id, message = "Business partner and cost centers added successfully." });
+        return Ok(new { bpId, message = "Business partner and cost centers added successfully." });
     }
 }
