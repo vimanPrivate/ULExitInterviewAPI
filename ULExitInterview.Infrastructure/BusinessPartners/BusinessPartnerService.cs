@@ -46,22 +46,74 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
         return partners;
     }
 
-    public async Task<int> RemoveBusinessPartnerAsync(string masterStaffId, string updatedUser, CancellationToken cancellationToken = default)
+    public async Task<int> RemoveBusinessPartnerAsync(string masterStaffId, string createdUser, IReadOnlyList<BpCostCenterItem> costCenters, CancellationToken cancellationToken = default)
     {
         await using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            UPDATE dbo.tblBusinessPartners
-            SET IsMasterActive = 0,
-                UpdatedDate = GETDATE(),
-                UpdatedUser = @UpdatedUser
-            WHERE MasterStaffId = @MasterStaffId
-              AND IsMasterActive = 1;
-            """;
-        AddParameter(command, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
-        AddParameter(command, "@UpdatedUser", DbType.AnsiString, 20, updatedUser);
-        return await command.ExecuteNonQueryAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        try
+        {
+            var uniqueCostCenters = costCenters
+                .Select(x => new { Division = x.Division.Trim(), CostCenter = x.CostCenter.Trim() })
+                .DistinctBy(x => (x.Division.ToUpperInvariant(), x.CostCenter.ToUpperInvariant()))
+                .ToList();
+
+            var predicates = new List<string>();
+            await using var deactivate = connection.CreateCommand();
+            deactivate.Transaction = transaction;
+            AddParameter(deactivate, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
+            for (var i = 0; i < uniqueCostCenters.Count; i++)
+            {
+                predicates.Add($"(cc.Division = @Division{i} AND cc.CostCenter = @CostCenter{i})");
+                AddParameter(deactivate, $"@Division{i}", DbType.String, 200, uniqueCostCenters[i].Division);
+                AddParameter(deactivate, $"@CostCenter{i}", DbType.String, 200, uniqueCostCenters[i].CostCenter);
+            }
+
+            deactivate.CommandText = $"""
+                UPDATE cc
+                SET IsActive = 0
+                FROM dbo.tblBpAssignedCostCenters AS cc
+                INNER JOIN dbo.tblBusinessPartners AS bp
+                    ON bp.ID = cc.tblBusinessPartners_ID
+                WHERE bp.MasterStaffId = @MasterStaffId
+                  AND bp.IsMasterActive = 1
+                  AND cc.IsActive = 1
+                  AND ({string.Join(" OR ", predicates)});
+                """;
+            var affectedRows = await deactivate.ExecuteNonQueryAsync(cancellationToken);
+
+            if (affectedRows > 0)
+            {
+                await using var updatePartner = connection.CreateCommand();
+                updatePartner.Transaction = transaction;
+                updatePartner.CommandText = """
+                    UPDATE bp
+                    SET IsMasterActive = 0,
+                        UpdatedUser = @CreatedUser,
+                        UpdatedDate = GETDATE()
+                    FROM dbo.tblBusinessPartners AS bp
+                    WHERE bp.MasterStaffId = @MasterStaffId
+                      AND bp.IsMasterActive = 1
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM dbo.tblBpAssignedCostCenters AS cc
+                          WHERE cc.tblBusinessPartners_ID = bp.ID
+                            AND cc.IsActive = 1
+                      );
+                    """;
+                AddParameter(updatePartner, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
+                AddParameter(updatePartner, "@CreatedUser", DbType.AnsiString, 20, createdUser);
+                await updatePartner.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return affectedRows;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task<bool> RemoveActingStaffAsync(string masterStaffId, string updatedUser, CancellationToken cancellationToken = default)
