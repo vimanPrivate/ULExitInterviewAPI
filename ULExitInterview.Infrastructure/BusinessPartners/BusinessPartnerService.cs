@@ -17,6 +17,7 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
             FROM dbo.tblBusinessPartners AS bp
             LEFT JOIN dbo.tblBpAssignedCostCenters AS cc
                 ON cc.tblBusinessPartners_ID = bp.ID
+               AND cc.IsActive = 1
             WHERE bp.IsMasterActive = 1
             ORDER BY bp.ID, cc.Division, cc.CostCenter;
             """;
