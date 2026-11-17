@@ -9,10 +9,7 @@ public sealed class GetExitInterviewInfoRequest
 {
     public string? StaffName { get; init; }
     public string? StaffNo { get; init; }
-    public string? CostCenterName { get; init; }
-    public string? CostCenterCode { get; init; }
-    public string? DivisionName { get; init; }
-    public string? DivisionCode { get; init; }
+    public IReadOnlyList<ExitInterviewCostCenterFilterDto>? CostCenters { get; init; }
 
     [Range(0, int.MaxValue)]
     public int? Status { get; init; }
@@ -28,6 +25,14 @@ public sealed class GetExitInterviewInfoRequest
 
     [Range(1, 500)]
     public int PageSize { get; init; } = 10;
+}
+
+public sealed class ExitInterviewCostCenterFilterDto
+{
+    public string? CostCenterName { get; init; }
+    public string? CostCenterCode { get; init; }
+    public string? DivisionName { get; init; }
+    public string? DivisionCode { get; init; }
 }
 
 public sealed record ExitInterviewInfoResponseDto(
