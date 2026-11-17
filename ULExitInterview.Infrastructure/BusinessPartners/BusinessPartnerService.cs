@@ -71,7 +71,7 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
         await using var command = connection.CreateCommand();
         command.CommandText = """
             UPDATE dbo.tblBusinessPartners
-            SET IsMasterActive = 0,
+            SET ActingStaffID = NULL,
                 UpdatedDate = GETDATE(),
                 UpdatedUser = @UpdatedUser
             WHERE MasterStaffId = @MasterStaffId
