@@ -95,6 +95,9 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
             return BadRequest(new { message = "Master and acting staff IDs must differ." });
 
         var bpId = await businessPartnerService.AssignActingStaffAsync(masterStaffId, actingStaffId, request.CreatedUser.Trim(), cancellationToken);
+        if (bpId == 0)
+            return NotFound(new { message = "No active business partner with an active cost center assignment found for this master staff ID." });
+
         return Ok(new { bpId, masterStaffId, actingStaffId, message = "Acting staff assigned successfully." });
     }
 
