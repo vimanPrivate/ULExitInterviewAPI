@@ -44,7 +44,8 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
         [Required, StringLength(20, MinimumLength = 1)] string CreatedUser);
 
     public sealed record RemoveActingStaffRequest(
-        [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId);
+        [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId,
+        [Required, StringLength(20, MinimumLength = 1)] string UpdatedUser);
 
     public sealed record RemoveBusinessPartnerRequest(
         [Required, StringLength(20, MinimumLength = 1)] string MasterStaffId,
@@ -68,15 +69,12 @@ public sealed class BusinessPartnerController(IBusinessPartnerService businessPa
     [HttpPost("RemoveActingStaff")]
     public async Task<IActionResult> RemoveActingStaff([FromBody] RemoveActingStaffRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.MasterStaffId))
-            return BadRequest(new { message = "masterStaffId is required." });
-
-        var updatedUser = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name;
-        if (string.IsNullOrWhiteSpace(updatedUser) || updatedUser.Length > 20)
-            return Forbid();
+        if (string.IsNullOrWhiteSpace(request.MasterStaffId) || string.IsNullOrWhiteSpace(request.UpdatedUser))
+            return BadRequest(new { message = "masterStaffId and updatedUser are required." });
 
         var masterStaffId = request.MasterStaffId.Trim();
-        var removed = await businessPartnerService.RemoveActingStaffAsync(masterStaffId, updatedUser, cancellationToken);
+        var removed = await businessPartnerService.RemoveActingStaffAsync(
+            masterStaffId, request.UpdatedUser.Trim(), cancellationToken);
         if (!removed)
             return NotFound(new { message = "No active acting staff assignment found for this master staff ID." });
 
