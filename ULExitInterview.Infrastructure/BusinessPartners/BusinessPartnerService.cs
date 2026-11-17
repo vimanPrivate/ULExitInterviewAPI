@@ -6,6 +6,31 @@ namespace ULExitInterview.Infrastructure.BusinessPartners;
 
 internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connectionFactory) : IBusinessPartnerService
 {
+    public async Task<IReadOnlyList<BpCostCenterItem>> GetActiveCostCentersByMasterStaffIdAsync(string masterStaffId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT DISTINCT cc.Division, cc.CostCenter
+            FROM dbo.tblBusinessPartners AS bp
+            INNER JOIN dbo.tblBpAssignedCostCenters AS cc
+                ON cc.tblBusinessPartners_ID = bp.ID
+            WHERE bp.MasterStaffId = @MasterStaffId
+              AND bp.IsMasterActive = 1
+              AND cc.IsActive = 1
+            ORDER BY cc.Division, cc.CostCenter;
+            """;
+        AddParameter(command, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
+        var result = new List<BpCostCenterItem>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            result.Add(new BpCostCenterItem(
+                Convert.ToString(reader["Division"]) ?? string.Empty,
+                Convert.ToString(reader["CostCenter"]) ?? string.Empty));
+        return result;
+    }
+
     public async Task<IReadOnlyList<AssignedBusinessPartnerDto>> GetAssignedBusinessPartnersAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = connectionFactory.CreateConnection();
