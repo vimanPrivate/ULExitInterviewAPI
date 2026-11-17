@@ -87,78 +87,32 @@ internal sealed class BusinessPartnerService(IPrimarySqlConnectionFactory connec
     {
         await using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-        try
-        {
-            int? previousBpId = null;
-            await using (var find = connection.CreateCommand())
-            {
-                find.Transaction = transaction;
-                find.CommandText = """
-                    SELECT TOP (1) ID
-                    FROM dbo.tblBusinessPartners WITH (UPDLOCK, HOLDLOCK)
-                    WHERE MasterStaffId = @MasterStaffId AND IsMasterActive = 1
-                    ORDER BY ID DESC;
-                    """;
-                AddParameter(find, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
-                var previous = await find.ExecuteScalarAsync(cancellationToken);
-                if (previous is not null && previous != DBNull.Value)
-                    previousBpId = Convert.ToInt32(previous);
-            }
-
-            await using (var deactivate = connection.CreateCommand())
-            {
-                deactivate.Transaction = transaction;
-                deactivate.CommandText = """
-                    UPDATE dbo.tblBusinessPartners
-                    SET IsMasterActive = 0, UpdatedDate = GETDATE(), UpdatedUser = @CreatedUser
-                    WHERE MasterStaffId = @MasterStaffId AND IsMasterActive = 1;
-                    """;
-                AddParameter(deactivate, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
-                AddParameter(deactivate, "@CreatedUser", DbType.AnsiString, 20, createdUser);
-                await deactivate.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            int newBpId;
-            await using (var insert = connection.CreateCommand())
-            {
-                insert.Transaction = transaction;
-                insert.CommandText = """
-                    INSERT INTO dbo.tblBusinessPartners
-                        (MasterStaffId, IsMasterActive, ActingStaffID, CreatedDate, CreatedUser)
-                    OUTPUT INSERTED.ID
-                    VALUES (@MasterStaffId, 1, @ActingStaffId, GETDATE(), @CreatedUser);
-                    """;
-                AddParameter(insert, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
-                AddParameter(insert, "@ActingStaffId", DbType.AnsiString, 20, actingStaffId);
-                AddParameter(insert, "@CreatedUser", DbType.AnsiString, 20, createdUser);
-                newBpId = Convert.ToInt32(await insert.ExecuteScalarAsync(cancellationToken));
-            }
-
-            if (previousBpId.HasValue)
-            {
-                await using var copy = connection.CreateCommand();
-                copy.Transaction = transaction;
-                copy.CommandText = """
-                    INSERT INTO dbo.tblBpAssignedCostCenters
-                        (tblBusinessPartners_ID, Division, CostCenter)
-                    SELECT @NewBpId, Division, CostCenter
-                    FROM dbo.tblBpAssignedCostCenters
-                    WHERE tblBusinessPartners_ID = @PreviousBpId;
-                    """;
-                AddParameter(copy, "@NewBpId", DbType.Int32, 0, newBpId);
-                AddParameter(copy, "@PreviousBpId", DbType.Int32, 0, previousBpId.Value);
-                await copy.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-            return newBpId;
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE dbo.tblBusinessPartners
+            SET ActingStaffID = @ActingStaffId,
+                UpdatedDate = GETDATE(),
+                UpdatedUser = @UpdatedUser
+            OUTPUT INSERTED.ID
+            WHERE ID = (
+                SELECT TOP (1) bp.ID
+                FROM dbo.tblBusinessPartners AS bp
+                WHERE bp.MasterStaffId = @MasterStaffId
+                  AND bp.IsMasterActive = 1
+                  AND EXISTS (
+                      SELECT 1
+                      FROM dbo.tblBpAssignedCostCenters AS cc
+                      WHERE cc.tblBusinessPartners_ID = bp.ID
+                        AND cc.IsActive = 1
+                  )
+                ORDER BY bp.ID DESC
+            );
+            """;
+        AddParameter(command, "@MasterStaffId", DbType.AnsiString, 20, masterStaffId);
+        AddParameter(command, "@ActingStaffId", DbType.AnsiString, 20, actingStaffId);
+        AddParameter(command, "@UpdatedUser", DbType.AnsiString, 20, createdUser);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is null || result == DBNull.Value ? 0 : Convert.ToInt32(result);
     }
 
     public async Task<int> AddBusinessPartnerWithCostCentersAsync(string staffId, IReadOnlyList<BpCostCenterItem> costCenters, string createdUser, CancellationToken cancellationToken = default)
